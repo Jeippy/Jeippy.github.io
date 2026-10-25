@@ -1,0 +1,15 @@
+Leitura de Partitura (versão para usar sem internet)
+
+Para instalar como app no celular (iPhone ou Android):
+1. Coloque esta pasta inteira num serviço gratuito de hospedagem de sites estáticos,
+   como Netlify ou GitHub Pages. O app precisa de um endereço https para funcionar offline.
+2. Abra esse endereço no celular, com internet, uma vez.
+   - iPhone (Safari): botão Compartilhar > Adicionar à Tela de Início.
+   - Android (Chrome): menu ⋮ > Instalar app (ou Adicionar à tela inicial).
+3. Pronto. O ícone abre o app em tela cheia, mesmo sem internet.
+
+Para abrir direto, sem instalar:
+- No computador, e em muitos celulares Android, basta abrir o arquivo index.html no navegador.
+- No iPhone, abrir o arquivo direto costuma não funcionar; use a instalação acima.
+
+Seu desempenho fica salvo no aparelho, separado da versão online.
