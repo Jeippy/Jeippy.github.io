@@ -194,6 +194,9 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
 .beam{fill:var(--ink)}
 .tick{stroke-width:2.5;stroke-linecap:round}
 .tick.ok{stroke:var(--ok)} .tick.near{stroke:var(--warn)} .tick.bad{stroke:var(--bad)}
+.hold-exp{fill:var(--rule)}
+.hold.ok{fill:var(--ok)} .hold.near{fill:var(--warn)} .hold.bad{fill:var(--bad)}
+.hold{opacity:.85}
 
 @media (max-width:760px){
   .below{grid-template-columns:minmax(0,1fr);gap:28px}
@@ -335,6 +338,13 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
         </div>
       </div>
       <div class="field">
+        <span class="flabel" id="lbl-mode">Toque</span>
+        <div class="seg" role="radiogroup" aria-labelledby="lbl-mode">
+          <button type="button" role="radio" id="md-bater" data-rmode="bater" aria-checked="true">Bater</button>
+          <button type="button" role="radio" id="md-segurar" data-rmode="segurar" aria-checked="false">Segurar</button>
+        </div>
+      </div>
+      <div class="field">
         <span class="flabel" id="lbl-meter">Compasso</span>
         <div class="seg" role="radiogroup" aria-labelledby="lbl-meter">
           <button type="button" role="radio" id="rm-2" data-meter="2" aria-checked="false">2/4</button>
@@ -361,6 +371,17 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
           <button type="button" role="radio" id="mt-sempre" data-metro="sempre" aria-checked="true">Sempre</button>
           <button type="button" role="radio" id="mt-contagem" data-metro="contagem" aria-checked="false">Só na contagem</button>
         </div>
+      </div>
+      <div class="field">
+        <span class="flabel" id="lbl-start">Início</span>
+        <div class="seg" role="radiogroup" aria-labelledby="lbl-start">
+          <button type="button" role="radio" id="st-toque" data-start="toque" aria-checked="true">No meu 1º toque</button>
+          <button type="button" role="radio" id="st-contagem" data-start="contagem" aria-checked="false">Logo após a contagem</button>
+        </div>
+      </div>
+      <div class="field">
+        <span class="flabel" id="lbl-tapsnd">Som do toque</span>
+        <button type="button" class="switch" role="switch" id="sw-tapsnd" aria-checked="true" aria-labelledby="lbl-tapsnd"><span class="track"></span><span id="tapsnd-txt">Ligado</span></button>
       </div>
       <div class="field">
         <span class="flabel" id="lbl-view">Exibição</span>
@@ -1014,7 +1035,7 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
   CELLS.forEach(function(c){c.rest=c.ev.some(function(e){return !!e[1];});});
   var R_COUNTS=[2,4,8,12,16];
 
-  settings.r=Object.assign({meter:4,bpm:70,figs:LV1.slice(),metro:"sempre",latency:0,calibrated:false,cursor:false,hands:"uma",measures:4,view:"pagina"},settings.r||{});
+  settings.r=Object.assign({meter:4,bpm:70,figs:LV1.slice(),metro:"sempre",latency:0,calibrated:false,cursor:false,hands:"uma",measures:4,view:"pagina",mode:"bater",start:"toque",tapSound:true},settings.r||{});
   (function(r){
     if([2,3,4].indexOf(r.meter)<0) r.meter=4;
     r.bpm=clamp(Math.round(+r.bpm||70),40,160);
@@ -1027,14 +1048,18 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
     if(r.hands!=="duas") r.hands="uma";
     r.measures=R_COUNTS.indexOf(+r.measures)>=0?+r.measures:4;
     if(r.view!=="rolando") r.view="pagina";
+    if(r.mode!=="segurar") r.mode="bater";
+    if(r.start!=="contagem") r.start="toque";
+    r.tapSound=r.tapSound!==false;
   })(settings.r);
 
   // anchor: instante do primeiro toque, que marca o início do exercício e serve de referência para os outros.
-  var R={ex:null,state:"idle",kind:"ex",taps:[],result:null,msg:"",startPerf:0,countPerf:0,anchor:null,beatMs:0,totalMs:0,meter:4,bus:null,raf:0,L:null,wake:null};
+  var R={ex:null,state:"idle",kind:"ex",auto:false,taps:[],active:{},result:null,msg:"",startPerf:0,countPerf:0,anchor:null,beatMs:0,totalMs:0,meter:4,bus:null,raf:0,L:null,wake:null};
   var rHost=document.getElementById("r-host"), rGo=document.getElementById("r-go"), rResult=document.getElementById("r-result");
   var rNum=document.getElementById("r-num"), rLbl=document.getElementById("r-lbl");
   var rPads={R:document.getElementById("r-pad"),L:document.getElementById("r-pad-l")};
   function rTwo(){return settings.r.hands==="duas";}
+  function rHold(){return settings.r.mode==="segurar";}
 
   function rGenerate(){
     var meter=settings.r.meter, figs=settings.r.figs, ms=[];
@@ -1202,10 +1227,25 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
         p.push('<rect class="beam" x="'+f(a)+'" y="'+f(top+0.75*sp)+'" width="'+f(b-a)+'" height="'+f(0.5*sp)+'"/>');
       }
     });
+    // Barra de um instante a outro na mesma linha de pauta (se passar para a linha seguinte, vai até a borda).
+    function span(a16,b16){
+      var A=rPos(L,a16), B=rPos(L,Math.max(a16,b16-0.001));
+      return {s:A.s,x1:A.x,x2:B.s===A.s?B.x:W-1};
+    }
     if(res) Object.keys(res.hands).forEach(function(h){
-      res.hands[h].ticks.forEach(function(tk){
+      var hr=res.hands[h], bh=0.42*sp;
+      if(res.hold) hr.exp.forEach(function(e){
+        var sp2=span(e.t16,e.e16), y=yOf(L.sys[sp2.s],h);
+        p.push('<rect class="hold-exp" x="'+f(sp2.x1)+'" y="'+f(y+3*sp-bh/2)+'" width="'+f(Math.max(2,sp2.x2-sp2.x1-0.3*sp))+'" height="'+f(bh)+'" rx="'+f(bh/2)+'"/>');
+      });
+      hr.ticks.forEach(function(tk){
         var ps=rPos(L,tk.t16), y=yOf(L.sys[ps.s],h);
-        p.push('<line class="tick '+tk.c+'" x1="'+f(ps.x)+'" x2="'+f(ps.x)+'" y1="'+f(y+2.4*sp)+'" y2="'+f(y+3.6*sp)+'"/>');
+        if(res.hold&&tk.u16!=null){
+          // Nota emendada: a barra desce um pouco para aparecer por baixo da nota seguinte.
+          var sp2=span(tk.t16,tk.u16), hc=tk.hs==="ok"?"ok":tk.hs==="bad"?"bad":"near", dy=tk.hs==="overlap"?0.6*sp:0;
+          p.push('<rect class="hold '+hc+'" x="'+f(sp2.x1)+'" y="'+f(y+3*sp-bh/2+dy)+'" width="'+f(Math.max(2,sp2.x2-sp2.x1))+'" height="'+f(bh)+'" rx="'+f(bh/2)+'"/>');
+        }
+        p.push('<line class="tick '+tk.c+'" x1="'+f(ps.x)+'" x2="'+f(ps.x)+'" y1="'+f(y+2.2*sp)+'" y2="'+f(y+3.8*sp)+'"/>');
       });
     });
     var aria='Exercício de ritmo em '+L.meter+' por 4, '+R.ex.measures.length+' compassos'+(L.two?', duas mãos':'');
@@ -1259,6 +1299,50 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
       if(t>ctx.currentTime+0.005) rClick(ctx,R.bus,t,k%R.meter===0);
     }
   }
+  /* Som do toque. Bater: bloco de madeira, curto e de ataque marcado (agudo na mão direita, grave na esquerda);
+     soa bem até no alto-falante do celular. Segurar: nota de piano que soa enquanto você segura e para quando solta. */
+  var rNoise=null;
+  function rNoiseBuf(ctx){
+    if(rNoise) return rNoise;
+    var n=Math.floor(ctx.sampleRate*0.03), b=ctx.createBuffer(1,n,ctx.sampleRate), d=b.getChannelData(0);
+    for(var i=0;i<n;i++) d[i]=(Math.random()*2-1)*(1-i/n);
+    return (rNoise=b);
+  }
+  function rWood(ctx,dest,t,low){
+    var f0=low?520:820;
+    [[1,0.55,0.07],[2.37,0.22,0.035]].forEach(function(pt){
+      var o=ctx.createOscillator(), g=ctx.createGain(), fr=f0*pt[0];
+      o.type="sine"; o.frequency.setValueAtTime(fr*1.06,t); o.frequency.exponentialRampToValueAtTime(fr,t+0.012);
+      g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(pt[1],t+0.0015); g.gain.exponentialRampToValueAtTime(0.0001,t+pt[2]*3);
+      o.connect(g); g.connect(dest); o.start(t); o.stop(t+pt[2]*3+0.02);
+    });
+    var ns=ctx.createBufferSource(), bp=ctx.createBiquadFilter(), ng=ctx.createGain();
+    ns.buffer=rNoiseBuf(ctx); bp.type="bandpass"; bp.frequency.value=f0*3; bp.Q.value=1.2;
+    ng.gain.setValueAtTime(0.25,t); ng.gain.exponentialRampToValueAtTime(0.0001,t+0.02);
+    ns.connect(bp); bp.connect(ng); ng.connect(dest); ns.start(t); ns.stop(t+0.03);
+  }
+  function rPiano(ctx,dest,t,freq){
+    var out=ctx.createGain(), oscs=[];
+    out.gain.setValueAtTime(0.0001,t); out.gain.exponentialRampToValueAtTime(0.3,t+0.005); out.gain.setTargetAtTime(0.0001,t+0.005,1.6);
+    out.connect(dest);
+    [[1,1],[2,0.45],[3,0.22],[4,0.1],[5,0.05]].forEach(function(pt){
+      var o=ctx.createOscillator(), g=ctx.createGain();
+      o.type="sine"; o.frequency.value=freq*pt[0]*(1+0.0008*pt[0]);
+      g.gain.setValueAtTime(pt[1],t); g.gain.setTargetAtTime(pt[1]*0.25,t,0.5/pt[0]);   // os parciais agudos somem antes, como no piano
+      o.connect(g); g.connect(out); o.start(t); o.stop(t+8); oscs.push(o);
+    });
+    return {stop:function(){
+      var n=ctx.currentTime;
+      out.gain.cancelScheduledValues(n); out.gain.setValueAtTime(Math.max(0.0001,out.gain.value),n); out.gain.setTargetAtTime(0.0001,n,0.035);
+      oscs.forEach(function(o){try{o.stop(n+0.25);}catch(e){}});
+    }};
+  }
+  function rTapSound(h){
+    if(!settings.r.tapSound||!actx||!R.bus||R.kind==="cal") return null;
+    var ctx=actx, low=rTwo()&&h==="L";
+    if(rHold()) return rPiano(ctx,R.bus,ctx.currentTime,low?130.81:523.25);   // Dó3 na esquerda, Dó5 na direita
+    rWood(ctx,R.bus,ctx.currentTime,low); return null;
+  }
   function rPadText(num,lbl){num=String(num);if(rNum.textContent!==num)rNum.textContent=num;if(rLbl.textContent!==lbl)rLbl.textContent=lbl;}
   function rUI(){
     var run=R.state!=="idle", two=rTwo();
@@ -1267,13 +1351,17 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
     document.getElementById("r-calib").disabled=run;
     rPads.L.hidden=!two;
     rPads.R.classList.toggle("live",R.state==="run"); rPads.L.classList.toggle("live",R.state==="run");
-    document.getElementById("r-pad-r-title").textContent=two?"Mão direita":"Toque aqui";
-    document.getElementById("r-pad-r-sub").textContent=two?"ritmo · tecla J":"ou use a barra de espaço";
-    document.getElementById("r-hint").textContent=two?"No computador: F para a mão esquerda e J para a direita. Esc para parar.":"No computador, toque com a barra de espaço. Esc para parar.";
+    var hold=rHold();
+    document.getElementById("r-pad-r-title").textContent=two?"Mão direita":(hold?"Segure aqui":"Toque aqui");
+    document.getElementById("r-pad-r-sub").textContent=two?"ritmo · tecla J":(hold?"ou segure a barra de espaço":"ou use a barra de espaço");
+    document.getElementById("r-hint").textContent=two?(hold?"No computador: segure F para a mão esquerda e J para a direita. Esc para parar.":"No computador: F para a mão esquerda e J para a direita. Esc para parar.")
+      :(hold?"No computador, segure a barra de espaço. Esc para parar.":"No computador, toque com a barra de espaço. Esc para parar.");
     rGo.textContent=run?"Parar":(R.result?"Tocar de novo":"Começar");
+    var auto=settings.r.start==="contagem";
+    var startTxt=auto?(two?"O metrônomo conta um compasso e o exercício começa logo em seguida: entre com as duas mãos no tempo 1.":"O metrônomo conta um compasso e o exercício começa logo em seguida: entre no tempo 1.")
+      :(two?"Depois da contagem, comece com as duas mãos juntas no primeiro tempo: esse toque marca o início.":"O metrônomo conta um compasso; depois, toque a primeira nota quando estiver pronto. Esse toque marca o início, e as outras notas são medidas a partir dele.");
     if(!run) rPadText("",R.msg||(R.result?"Aperte “Tocar de novo” para repetir este exercício ou “Novo exercício” para outro."
-      :two?"Aperte “Começar”. Depois da contagem, comece com as duas mãos juntas no primeiro tempo: esse toque marca o início. A esquerda toca todos os tempos e a direita, o ritmo."
-      :"Aperte “Começar”. O metrônomo conta um compasso; depois, toque a primeira nota quando estiver pronto. Esse toque marca o início, e as outras notas são medidas a partir dele."));
+      :"Aperte “Começar”. "+startTxt+(two?" A esquerda toca todos os tempos e a direita, o ritmo.":"")+(hold?" Segure cada nota pelo tempo que ela dura; nas pausas, solte.":"")));
     document.getElementById("r-status").textContent=R.ex.measures.length+" compassos de "+R.ex.meter+"/4 · "+settings.r.bpm+" bpm"+(two?" · duas mãos":"");
   }
   function rStart(kind){
@@ -1292,10 +1380,11 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
       var T0=ctx.currentTime+0.35, exBeats=kind==="cal"?12:R.ex.measures.length*meter, k;
       for(k=0;k<meter;k++) rClick(ctx,bus,T0+k*beat,k===0);
       // Na calibração os cliques seguem direto; no exercício, o metrônomo espera o primeiro toque.
-      if(kind==="cal") for(k=0;k<exBeats;k++) rClick(ctx,bus,T0+(meter+k)*beat,k%meter===0);
+      R.auto=kind==="ex"&&settings.r.start==="contagem";
+      if(kind==="cal"||(R.auto&&settings.r.metro==="sempre")) for(k=0;k<exBeats;k++) rClick(ctx,bus,T0+(meter+k)*beat,k%meter===0);
       R.beatMs=beat*1000; R.meter=meter; R.countPerf=rPerfAt(ctx,T0); R.startPerf=R.countPerf+meter*R.beatMs; R.totalMs=exBeats*R.beatMs;
-      R.anchor=kind==="cal"?R.startPerf:null;
-      R.taps=[]; R.state="run"; rUI();
+      R.anchor=(kind==="cal"||R.auto)?R.startPerf:null;   // início automático: o tempo 1 vem logo após a contagem
+      R.taps=[]; R.active={}; R.state="run"; rUI();
       try{if(navigator.wakeLock)navigator.wakeLock.request("screen").then(function(w){R.wake=w;}).catch(function(){});}catch(e){}
       R.raf=requestAnimationFrame(rTick);
     }).catch(function(){R.state="idle";R.msg="Não foi possível ligar o som. Toque em “Começar” de novo.";rUI();});
@@ -1306,32 +1395,41 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
     if(cal){
       var el=now-R.startPerf;
       rPadText(el<R.totalMs?(((k%R.meter)+R.meter)%R.meter)+1:"",el<0?"Toque junto com cada clique":"Continue tocando junto com os cliques");
-    } else if(R.anchor==null){
+    } else if(R.anchor==null||now<R.anchor){
       rPadText(k>=0&&k<R.meter?k+1:"",k<R.meter?"Contagem: prepare-se":(rTwo()?"Comece com as duas mãos juntas":"Toque a primeira nota para começar"));
     } else {
-      rPadText("",rTwo()?"Esquerda em todos os tempos, direita no ritmo":"Toque no começo de cada nota");
+      rPadText("",rTwo()?"Esquerda em todos os tempos, direita no ritmo"+(rHold()?", segurando cada nota":""):(rHold()?"Segure cada nota pelo tempo dela; solte nas pausas":"Toque no começo de cada nota"));
       var t16=Math.min(now-R.anchor,R.totalMs)/R.beatMs*4;
       if(R.L&&R.L.strip) rScroll(t16); else if(settings.r.cursor) rCursor(t16);
     }
     if(R.anchor!=null&&now-R.anchor>R.totalMs+450){rFinish();return;}
     R.raf=requestAnimationFrame(rTick);
   }
-  function rTap(ts,h){
-    if(R.state!=="run") return;
-    var now=performance.now(), t=ts>0&&Math.abs(now-ts)<1000?ts:now, pad=rPads[h]||rPads.R;
-    pad.classList.add("hit"); clearTimeout(pad._t); pad._t=setTimeout(function(){pad.classList.remove("hit");},90);
-    if(R.anchor==null){
-      // Toques durante a contagem não contam; o primeiro depois dela (ou meio tempo antes) começa o exercício.
-      if(t<R.startPerf-0.5*R.beatMs) return;
-      R.anchor=t;
-      if(settings.r.metro==="sempre") rScheduleFrom(t);
-    }
-    R.taps.push({t:t,h:h});
+  // Cada toque guarda quando apertou (t) e quando soltou (up). id separa dedos e teclas, para as duas mãos ao mesmo tempo.
+  function rStamp(ts){var now=performance.now();return ts>0&&Math.abs(now-ts)<1000?ts:now;}
+  function rDown(ts,h,id){
+    if(R.state!=="run"||R.active[id]) return;
+    var t=rStamp(ts), pad=rPads[h]||rPads.R;
+    pad.classList.add("hit"); clearTimeout(pad._t);
+    if(!rHold()) pad._t=setTimeout(function(){pad.classList.remove("hit");},90);
+    // Toques durante a contagem não contam. No início pelo 1º toque, o primeiro depois dela (ou até meio tempo antes) começa o exercício.
+    if(R.kind!=="cal"&&t<R.startPerf-0.5*R.beatMs){R.active[id]={h:h,ignored:true};return;}
+    if(R.anchor==null){R.anchor=t;if(settings.r.metro==="sempre")rScheduleFrom(t);}
+    var press={t:t,h:h,up:null,voice:rTapSound(h)}; R.taps.push(press); R.active[id]=press;
+  }
+  function rUp(ts,id){
+    var p=R.active[id]; if(!p) return;
+    delete R.active[id];
+    if(!p.ignored) p.up=rStamp(ts);
+    if(p.voice){p.voice.stop();p.voice=null;}
+    var still=Object.keys(R.active).some(function(k){return R.active[k].h===p.h;});
+    if(rHold()&&!still) (rPads[p.h]||rPads.R).classList.remove("hit");
   }
   function rRelease(){
     if(R.bus){try{R.bus.disconnect();}catch(e){}R.bus=null;}
     if(R.wake){try{R.wake.release();}catch(e){}R.wake=null;}
     cancelAnimationFrame(R.raf);
+    R.active={}; rPads.R.classList.remove("hit"); rPads.L.classList.remove("hit");
   }
   function rStop(){if(R.state==="idle")return;R.state="idle";rRelease();rCursor(null);rScroll(0);rUI();}
   function rFinish(){
@@ -1345,44 +1443,68 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
      dentro de uma janela que encolhe quando as notas são rápidas. Verde: até a metade da janela (no máximo 60 ms).
      Amarelo: dentro da janela. Vermelho: nota sem toque ou toque sem nota. Como tudo é medido a partir do seu
      toque, o atraso do aparelho se anula. */
+  // Notas de uma mão, com duração (len), se vem pausa depois (nextRest) e se é a última (last).
   function rNotesFor(h){
-    var beatMs=R.beatMs, meter=R.ex.meter, out=[];
-    if(h==="R") R.ex.measures.forEach(function(evs,m){evs.forEach(function(e,ei){if(!e.rest)out.push({key:"R"+m+"_"+ei,t:(m*meter*4+e.pos)/4*beatMs,m:m,pos:e.pos});});});
-    else for(var b=0;b<R.ex.measures.length*meter;b++) out.push({key:"L"+b,t:b*beatMs,beat:b});
+    var beatMs=R.beatMs, meter=R.ex.meter, out=[], flat=[];
+    if(h==="R") R.ex.measures.forEach(function(evs,m){evs.forEach(function(e,ei){flat.push({key:"R"+m+"_"+ei,t:(m*meter*4+e.pos)/4*beatMs,t16:m*meter*4+e.pos,m:m,pos:e.pos,dur:e.dur,rest:e.rest});});});
+    else for(var b=0;b<R.ex.measures.length*meter;b++) flat.push({key:"L"+b,t:b*beatMs,t16:b*4,beat:b,dur:4,rest:false});
+    flat.forEach(function(e,i){
+      if(e.rest) return;
+      var nx=flat[i+1];
+      e.len=e.dur/4*beatMs; e.nextRest=!!(nx&&nx.rest); e.last=!nx;
+      out.push(e);
+    });
     return out;
   }
   function rMatch(notes,taps){
-    var beatMs=R.beatMs;
+    var beatMs=R.beatMs, hold=rHold();
     notes.forEach(function(n,k){
       var a=k>0?n.t-notes[k-1].t:Infinity, b=k<notes.length-1?notes[k+1].t-n.t:Infinity;
       n.win=Math.min(180,0.5*Math.min(a,b)); n.good=Math.min(60,0.5*n.win);
     });
     var match=notes.map(function(){return null;}), extras=[];
-    taps.forEach(function(t){
+    taps.forEach(function(tp){
       var best=-1, bd=Infinity;
-      notes.forEach(function(n,k){var d=Math.abs(t-n.t);if(d<bd){bd=d;best=k;}});
-      if(best<0||bd>notes[best].win){extras.push(t);return;}
-      if(match[best]===null) match[best]=t;
-      else if(bd<Math.abs(match[best]-notes[best].t)){extras.push(match[best]);match[best]=t;}
-      else extras.push(t);
+      notes.forEach(function(n,k){var d=Math.abs(tp.t-n.t);if(d<bd){bd=d;best=k;}});
+      if(best<0||bd>notes[best].win){extras.push(tp);return;}
+      if(match[best]===null) match[best]=tp;
+      else if(bd<Math.abs(match[best].t-notes[best].t)){extras.push(match[best]);match[best]=tp;}
+      else extras.push(tp);
     });
-    var r={cls:{},dev:{},missed:[],ticks:[],ok:0,near:0,miss:0,extras:extras,extra:extras.length,total:notes.length,ndev:0,median:0}, devs=[];
+    var r={cls:{},dev:{},missed:[],ticks:[],exp:[],ok:0,near:0,miss:0,extras:extras.map(function(x){return x.t;}),extra:extras.length,total:notes.length,ndev:0,median:0,
+           dTotal:0,dOk:0,dEarly:0,dRest:0,dOverlap:0}, devs=[], endAll=R.totalMs+300;
+    function u16(tp){return (tp.up==null?endAll:tp.up)/beatMs*4;}
     notes.forEach(function(n,k){
-      var t=match[k];
-      if(t===null){r.cls[n.key]="bad";r.miss++;r.missed.push(n.key);return;}
-      var d=t-n.t, c=Math.abs(d)<=n.good?"ok":"near";
+      var tp=match[k];
+      if(hold) r.exp.push({t16:n.t16,e16:n.t16+n.dur});
+      if(tp===null){r.cls[n.key]="bad";r.miss++;r.missed.push(n.key);return;}
+      var d=tp.t-n.t, c=Math.abs(d)<=n.good?"ok":"near";
       devs.push(d); r.dev[n.key]=d; r.cls[n.key]=c; if(c==="ok")r.ok++;else r.near++;
-      r.ticks.push({t16:t/beatMs*4,c:c});
+      var tk={t16:tp.t/beatMs*4,c:c};
+      if(hold){
+        /* Fim da nota. Notas longas (a partir da semínima pontuada), a última e as que vêm antes de uma pausa precisam
+           durar quase o valor escrito; antes de uma pausa, a mão tem de sair logo; e nenhuma pode emendar na próxima. */
+        var up=tp.up==null?endAll:tp.up, end=n.t+n.len, st="ok";
+        var tolE=Math.max(150,0.25*n.len), tolL=Math.max(120,0.25*beatMs), nx=match[k+1];
+        if((n.dur>=6||n.nextRest||n.last)&&up<end-tolE) st="early";
+        else if(n.nextRest&&up>end+tolL) st="rest";
+        else if(!n.nextRest&&!n.last&&nx&&up>nx.t+30) st="overlap";
+        r.dTotal++; if(st==="ok")r.dOk++; else if(st==="early")r.dEarly++; else if(st==="rest")r.dRest++; else r.dOverlap++;
+        tk.u16=u16(tp); tk.hs=st;
+      }
+      r.ticks.push(tk);
     });
-    extras.forEach(function(t){r.ticks.push({t16:Math.max(0,t)/beatMs*4,c:"bad"});});
+    extras.forEach(function(tp){var tk={t16:Math.max(0,tp.t)/beatMs*4,c:"bad"};if(hold){tk.u16=u16(tp);tk.hs="bad";}r.ticks.push(tk);});
     r.ndev=devs.length; r.median=devs.length?median(devs):0;
     return r;
   }
   function rEvaluate(){
-    var two=rTwo(), res={two:two,hands:{},cls:{},insights:[]};
+    var two=rTwo(), res={two:two,hold:rHold(),auto:R.auto,hands:{},cls:{},insights:[]};
+    // No início automático o relógio é o do metrônomo, então o atraso calibrado do aparelho é descontado dos toques.
+    var base=R.anchor+(R.auto&&settings.r.calibrated?settings.r.latency:0);
     (two?["R","L"]:["R"]).forEach(function(h){
-      var taps=R.taps.filter(function(x){return x.h===h;}).map(function(x){return x.t-R.anchor;})
-        .filter(function(t){return t>=0&&t<R.totalMs+300;}).sort(function(a,b){return a-b;});
+      var taps=R.taps.filter(function(x){return x.h===h;}).map(function(x){return {t:x.t-base,up:x.up==null?null:x.up-base};})
+        .filter(function(x){return x.t>-Math.min(0.5*R.beatMs,300)&&x.t<R.totalMs+300;}).sort(function(a,b){return a.t-b.t;});
       var m=rMatch(rNotesFor(h),taps); res.hands[h]=m;
       Object.keys(m.cls).forEach(function(k){res.cls[k]=m.cls[k];});
     });
@@ -1424,19 +1546,31 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
       lines=res.insights.concat([rTend(Rr,"A mão direita"),rTend(Lr,"A mão esquerda")]);
     }
     var pct=tot?Math.round(ok/tot*100):0;
-    if(ok===tot&&extra===0) tip=(res.two?"As duas mãos no tempo. ":"Tudo no tempo. ")+"Experimente subir o andamento em 5 bpm"+(settings.r.metro==="sempre"?" ou deixar o metrônomo só na contagem.":".");
+    var H={t:0,ok:0,e:0,r:0,o:0};
+    if(res.hold){
+      Object.keys(res.hands).forEach(function(h){var x=res.hands[h];H.t+=x.dTotal;H.ok+=x.dOk;H.e+=x.dEarly;H.r+=x.dRest;H.o+=x.dOverlap;});
+      if(H.t){
+        html+='<p class="r-line"><b>Duração:</b> '+H.ok+' de '+H.t+' certas · <span class="dot near"></span>soltou cedo: '+H.e+' · invadiu a pausa: '+H.r+' · emendou na próxima: '+H.o+'</p>';
+        if(H.e>=2&&H.e>=H.r&&H.e>=H.o) lines.push("Você está soltando as notas longas antes da hora. Continue contando os tempos até o fim da mínima e da semibreve.");
+        else if(H.r>=2&&H.r>=H.o) lines.push("Nas pausas, levante a mão logo que a pausa começa.");
+        else if(H.o>=2) lines.push("Solte cada nota antes de tocar a próxima, como faria com a tecla do piano.");
+      }
+    }
+    if(ok===tot&&extra===0&&H.ok===H.t) tip=(res.two?"As duas mãos no tempo. ":"Tudo no tempo. ")+"Experimente subir o andamento em 5 bpm"+(settings.r.metro==="sempre"?" ou deixar o metrônomo só na contagem.":".");
     else if(pct<60) tip=res.two?"Diminua o andamento. Se precisar, pratique a mão esquerda sozinha contando os tempos em voz alta e depois junte a direita.":"Diminua o andamento e conte os tempos em voz alta enquanto toca.";
-    else tip="Repita este exercício até todas as notas ficarem verdes.";
+    else tip=res.hold?"Repita este exercício até todas as notas e barras ficarem verdes.":"Repita este exercício até todas as notas ficarem verdes.";
     lines.push(tip);
     lines.filter(Boolean).forEach(function(s){html+='<p class="r-line">'+s+'</p>';});
-    html+='<p class="r-legend">O seu primeiro toque é a referência, por isso a primeira nota sempre fica verde. Os traços embaixo de cada linha mostram onde você tocou: à esquerda da nota é adiantado, à direita é atrasado.</p>';
+    html+='<p class="r-legend">'+(res.auto?'O exercício começou logo após a contagem'+(settings.r.calibrated?', com o atraso calibrado descontado dos toques. ':'. Calibre o atraso deste aparelho para a avaliação ficar justa. ')
+      :'O seu primeiro toque é a referência, por isso a primeira nota sempre fica verde. ')+'Os traços embaixo de cada linha mostram onde você tocou: à esquerda da nota é adiantado, à direita é atrasado.'
+      +(res.hold?' A barra colorida é quanto você segurou; a faixa clara atrás dela é a duração escrita.':'')+'</p>';
     rResult.innerHTML=html; rResult.hidden=false;
   }
   function rCalText(){
     var r=settings.r;
     document.getElementById("r-calib-txt").textContent=r.calibrated
-      ?"Compensação de atraso: "+r.latency+" ms. O metrônomo adianta os cliques nesse tanto para soar junto com o seu toque."
-      :"Sem calibração. Se o metrônomo parecer atrasado em relação aos seus toques, calibre uma vez neste aparelho.";
+      ?"Compensação de atraso: "+r.latency+" ms. Com início logo após a contagem, ela é descontada dos seus toques; com início no seu 1º toque, ela adianta o metrônomo."
+      :"Sem calibração. Calibre uma vez neste aparelho se for usar o início logo após a contagem, ou se o metrônomo parecer atrasado em relação aos seus toques.";
   }
   // Calibração: 4 cliques de preparação e 12 para medir. O atraso é a mediana da diferença entre toque e clique.
   function rCalFinish(){
@@ -1459,6 +1593,10 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
     document.querySelectorAll("[data-metro]").forEach(function(b){b.setAttribute("aria-checked",String(b.dataset.metro===r.metro));});
     document.querySelectorAll("[data-hands-r]").forEach(function(b){b.setAttribute("aria-checked",String(b.dataset.handsR===r.hands));});
     document.querySelectorAll("[data-view]").forEach(function(b){b.setAttribute("aria-checked",String(b.dataset.view===r.view));});
+    document.querySelectorAll("[data-rmode]").forEach(function(b){b.setAttribute("aria-checked",String(b.dataset.rmode===r.mode));});
+    document.querySelectorAll("[data-start]").forEach(function(b){b.setAttribute("aria-checked",String(b.dataset.start===r.start));});
+    document.getElementById("sw-tapsnd").setAttribute("aria-checked",String(r.tapSound));
+    document.getElementById("tapsnd-txt").textContent=r.tapSound?(r.mode==="segurar"?"Ligado · piano":"Ligado · bloco de madeira"):"Desligado";
     document.getElementById("r-counts").innerHTML=R_COUNTS.map(function(n){
       return '<button type="button" role="radio" id="rc-'+n+'" data-count="'+n+'" aria-checked="'+(n===r.measures)+'">'+n+'</button>';
     }).join("");
@@ -1479,6 +1617,7 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
     var d=lv>=0?RLEVELS[lv].desc:"Combinação personalizada de figuras.";
     if(r.meter===2&&(r.figs.indexOf("semibreve")>=0||r.figs.indexOf("minpont")>=0)) d+=" Em 2/4 não cabem semibreve nem mínima pontuada.";
     else if(r.meter===3&&r.figs.indexOf("semibreve")>=0) d+=" Em 3/4 não cabe semibreve.";
+    if(r.mode==="segurar") d+=" Segurar: aperte no começo da nota e solte quando ela acaba; nas pausas, a mão fica levantada.";
     if(r.hands==="duas") d+=" Duas mãos: a direita toca o ritmo (linha de cima) e a esquerda, todos os tempos (linha de baixo).";
     if(r.view==="rolando") d+=r.cursor?" Rolando: as notas passam pela linha fixa; toque quando cada uma chegar nela.":" Rolando: as notas andam da direita para a esquerda no andamento escolhido.";
     document.getElementById("r-desc").textContent=d;
@@ -1496,6 +1635,21 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
     b.addEventListener("click",function(){
       if(b.dataset.handsR===settings.r.hands) return;
       settings.r.hands=b.dataset.handsR; saveSettings(); rRenderControls();
+      R.result=null; R.msg=""; rResult.hidden=true; rDraw(); rUI();
+    });
+  });
+  document.querySelectorAll("[data-start]").forEach(function(b){
+    b.addEventListener("click",function(){
+      if(b.dataset.start===settings.r.start) return;
+      settings.r.start=b.dataset.start; saveSettings(); rRenderControls();
+      R.result=null; R.msg=""; rResult.hidden=true; rDraw(); rUI();
+    });
+  });
+  document.getElementById("sw-tapsnd").addEventListener("click",function(){settings.r.tapSound=!settings.r.tapSound;saveSettings();rRenderControls();});
+  document.querySelectorAll("[data-rmode]").forEach(function(b){
+    b.addEventListener("click",function(){
+      if(b.dataset.rmode===settings.r.mode) return;
+      settings.r.mode=b.dataset.rmode; saveSettings(); rRenderControls();
       R.result=null; R.msg=""; rResult.hidden=true; rDraw(); rUI();
     });
   });
@@ -1525,7 +1679,14 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
   document.getElementById("r-calib").addEventListener("click",function(){rStart("cal");});
   // Cada área de toque responde sozinha, então dá para tocar com as duas mãos ao mesmo tempo no celular.
   Object.keys(rPads).forEach(function(h){
-    rPads[h].addEventListener("pointerdown",function(e){if(R.state!=="run")return;e.preventDefault();rTap(e.timeStamp,rTwo()?h:"R");});
+    var pad=rPads[h];
+    pad.addEventListener("pointerdown",function(e){
+      if(R.state!=="run") return;
+      e.preventDefault();
+      try{pad.setPointerCapture(e.pointerId);}catch(_){}
+      rDown(e.timeStamp,rTwo()?h:"R","p"+e.pointerId);
+    });
+    ["pointerup","pointercancel","lostpointercapture"].forEach(function(ev){pad.addEventListener(ev,function(e){rUp(e.timeStamp,"p"+e.pointerId);});});
   });
   document.addEventListener("keydown",function(e){
     if(settings.tab!=="ritmo"||R.state==="idle") return;
@@ -1539,7 +1700,12 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
       if(k.length!==1) return;
       if("asdfg".indexOf(k)>=0) h="L"; else if("hjklç;".indexOf(k)>=0) h="R"; else return;
     }
-    rTap(e.timeStamp,h);
+    rDown(e.timeStamp,h,"k"+e.code);
+  });
+  document.addEventListener("keyup",function(e){
+    if(settings.tab!=="ritmo") return;
+    if(R.state!=="idle") e.preventDefault();
+    rUp(e.timeStamp,"k"+e.code);
   });
 
   /* ---------- abas ---------- */
