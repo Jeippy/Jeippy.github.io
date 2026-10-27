@@ -13,3 +13,6 @@ Para abrir direto, sem instalar:
 - No iPhone, abrir o arquivo direto costuma não funcionar; use a instalação acima.
 
 Seu desempenho fica salvo no aparelho, separado da versão online.
+
+Para atualizar: envie os arquivos novos para a mesma pasta, substituindo os antigos.
+No celular, abra o app uma vez com internet; ele baixa a versão nova sozinho.

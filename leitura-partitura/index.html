@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Leitura de Partitura</title>
-<meta name="description" content="Treino de leitura de notas nas claves de Sol e Fá.">
+<meta name="description" content="Treino de leitura de notas nas claves de Sol e Fá e de ritmo com metrônomo.">
 <meta name="theme-color" content="#EDF0F3" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#111418" media="(prefers-color-scheme: dark)">
 <link rel="manifest" href="manifest.webmanifest">
@@ -31,19 +31,20 @@
   --ok-soft:#DCEFE3;
   --bad:#B53F2A;
   --bad-soft:#F5DFD9;
+  --warn:#A06A00;
   --font-display:"Bodoni Moda","Bodoni 72","Didot",Georgia,serif;
   --font-body:"Atkinson Hyperlegible","Segoe UI",system-ui,-apple-system,sans-serif;
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
     --paper:#111418; --surface:#181C22; --ink:#E6E9ED; --muted:#9AA3AE; --rule:#2C333C; --staff:#C4CAD3;
-    --accent:#7FB1DB; --accent-soft:#1E3145; --ok:#5DC48B; --ok-soft:#163125; --bad:#F07C66; --bad-soft:#3A1F1A;
+    --accent:#7FB1DB; --accent-soft:#1E3145; --ok:#5DC48B; --ok-soft:#163125; --bad:#F07C66; --bad-soft:#3A1F1A; --warn:#E3AA4F;
     color-scheme:dark;
   }
 }
 :root[data-theme="dark"]{
   --paper:#111418; --surface:#181C22; --ink:#E6E9ED; --muted:#9AA3AE; --rule:#2C333C; --staff:#C4CAD3;
-  --accent:#7FB1DB; --accent-soft:#1E3145; --ok:#5DC48B; --ok-soft:#163125; --bad:#F07C66; --bad-soft:#3A1F1A;
+  --accent:#7FB1DB; --accent-soft:#1E3145; --ok:#5DC48B; --ok-soft:#163125; --bad:#F07C66; --bad-soft:#3A1F1A; --warn:#E3AA4F;
   color-scheme:dark;
 }
 *{box-sizing:border-box}
@@ -71,7 +72,7 @@ h1 em{font-style:italic;color:var(--accent)}
 .chip{font-size:14px;padding:6px 12px;border-radius:8px;border:1px solid var(--rule);background:var(--surface);cursor:pointer}
 .chip:hover{border-color:var(--accent)}
 .chip[aria-checked="true"]{border-color:var(--accent);background:var(--accent-soft);font-weight:700}
-.desc{margin:0;font-size:14px;color:var(--muted);min-height:1.5em}
+.desc{margin:0;font-size:14px;color:var(--muted);min-height:1.5em;max-width:70ch}
 .seg{display:inline-flex;border:1px solid var(--rule);border-radius:8px;overflow:hidden;background:var(--surface)}
 .seg button{font-size:14px;padding:6px 12px;border:0;background:transparent;cursor:pointer;white-space:nowrap}
 .seg button + button{border-left:1px solid var(--rule)}
@@ -117,11 +118,14 @@ h2{font-family:var(--font-display);font-weight:600;font-size:22px;line-height:1.
 .wn{font-family:var(--font-display);font-size:22px;font-weight:600}
 .wp{color:var(--muted);font-size:14px}
 .wr{font-size:14px;color:var(--bad);font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums}
+.wr{color:var(--muted);font-weight:400}
+.wr b{color:var(--bad);font-weight:700}
+.wr i{font-style:normal;color:var(--ink);font-weight:700}
 
 .sheet{padding:18px 20px 20px}
 .sheet-head{display:flex;flex-wrap:wrap;gap:12px 24px;justify-content:space-between;align-items:center;margin-bottom:6px}
 .sheet-intro{margin:0;color:var(--muted);font-size:15px;min-width:0;flex:1 1 320px;max-width:62ch}
-.sheet-ctrl{display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.sheet-ctrl{display:flex;gap:12px 18px;align-items:center;flex-wrap:wrap}
 .btn{font-size:14px;font-weight:700;padding:8px 14px;border-radius:8px;border:1px solid var(--ink);background:var(--ink);color:var(--paper);cursor:pointer}
 .sheet-host{display:flex;flex-direction:column;width:100%;min-width:0}
 
@@ -138,6 +142,7 @@ h2{font-family:var(--font-display);font-weight:600;font-size:22px;line-height:1.
 .lbl.ok{fill:var(--ok);font-weight:700}
 .lbl.bad{fill:var(--bad);font-weight:700}
 .lbl.cur{fill:var(--accent);font-weight:700}
+.fing{fill:var(--accent);font-family:var(--font-body);font-weight:700}
 .mnum{fill:var(--muted);font-family:var(--font-display);font-style:italic}
 .clickable .nt{cursor:pointer}
 
@@ -147,6 +152,48 @@ h2{font-family:var(--font-display);font-weight:600;font-size:22px;line-height:1.
 .map-scroll{overflow-x:auto;padding-block:6px}
 .map-scroll svg{display:block;max-width:none}
 .foot{margin:28px 0 0;font-size:13px;color:var(--muted)}
+
+/* Ritmo */
+fieldset{border:0;margin:0;padding:0;min-width:0}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.field-wide{flex:1 1 100%}
+.chip[aria-disabled="true"]{cursor:default}
+fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.55}
+.bpm{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.bpm input{width:150px;accent-color:var(--accent)}
+.stepper{width:32px;height:32px;border:1px solid var(--rule);border-radius:8px;background:var(--surface);cursor:pointer;font-size:18px;line-height:1;padding:0}
+.bpm-val{font-size:14px;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+.bpm-val b{color:var(--ink);font-size:17px}
+.txtbtn:disabled{opacity:.45;cursor:default}
+.rcur{fill:var(--accent);opacity:.6}
+.r-state{display:flex;align-items:center;gap:14px;min-height:52px;margin-top:10px}
+.rpad-num{font-family:var(--font-display);font-size:40px;font-weight:600;line-height:1;font-variant-numeric:tabular-nums}
+.rpad-num:empty{display:none}
+.rpad-lbl{font-size:15px;color:var(--muted);max-width:60ch}
+.rpads{display:flex;gap:10px;margin-top:6px}
+.rpad{flex:1 1 0;min-width:0;min-height:130px;border:1.5px dashed var(--rule);border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;background:var(--paper);user-select:none;-webkit-user-select:none;touch-action:none;-webkit-tap-highlight-color:transparent;text-align:center;padding:12px}
+.rpad.live{border-style:solid;border-color:var(--accent);cursor:pointer}
+.rpad.hit{background:var(--accent-soft)}
+.rpad-hand{font-family:var(--font-display);font-size:22px;font-weight:600;line-height:1.1}
+.rpad-sub{font-size:13px;color:var(--muted)}
+.hand-lbl{fill:var(--muted);font-family:var(--font-display);font-style:italic}
+.r-strip{position:relative;overflow:hidden;width:100%}
+.r-track{will-change:transform}
+.r-track svg{display:block;max-width:none}
+.r-hit{position:absolute;top:0;bottom:0;width:2px;margin-left:-1px;background:var(--accent);opacity:.55;pointer-events:none}
+.r-actions{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;margin-top:14px}
+.r-actions .hint{margin:0;text-align:left}
+.r-result{margin-top:6px;padding:12px 14px;border-radius:10px;background:var(--paper)}
+.r-score{font-family:var(--font-display);font-size:28px;font-weight:600;line-height:1.15;margin:0}
+.r-line{margin:6px 0 0;font-size:15px}
+.r-legend{margin:8px 0 0;font-size:13px;color:var(--muted)}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px}
+.dot.ok{background:var(--ok)} .dot.near{background:var(--warn)} .dot.bad{background:var(--bad)}
+.calib{margin:14px 0 0;font-size:14px;color:var(--muted)}
+.nt.near .head{fill:var(--warn)} .nt.near .stem{stroke:var(--warn)}
+.beam{fill:var(--ink)}
+.tick{stroke-width:2.5;stroke-linecap:round}
+.tick.ok{stroke:var(--ok)} .tick.near{stroke:var(--warn)} .tick.bad{stroke:var(--bad)}
 
 @media (max-width:760px){
   .below{grid-template-columns:minmax(0,1fr);gap:28px}
@@ -173,6 +220,19 @@ h2{font-family:var(--font-display);font-weight:600;font-size:22px;line-height:1.
     <path id="g-clef" d="M1.503 -1.661C1.497 -1.708 1.503 -1.711 1.528 -1.736C1.961 -2.139 2.289 -2.647 2.289 -3.261C2.289 -3.608 2.192 -3.953 2.028 -4.192C1.967 -4.281 1.864 -4.392 1.819 -4.392C1.764 -4.392 1.639 -4.289 1.561 -4.2C1.264 -3.872 1.167 -3.372 1.167 -2.956C1.167 -2.725 1.197 -2.464 1.225 -2.3C1.233 -2.253 1.236 -2.244 1.189 -2.203C0.611 -1.728 0 -1.156 0 -0.347C0 0.347 0.475 1.008 1.456 1.008C1.547 1.008 1.653 1 1.733 0.983C1.775 0.975 1.783 0.972 1.792 1.019C1.839 1.289 1.9 1.636 1.9 1.825C1.9 2.417 1.5 2.489 1.264 2.489C1.047 2.489 0.944 2.425 0.944 2.372C0.944 2.344 0.981 2.333 1.072 2.303C1.197 2.267 1.339 2.161 1.339 1.928C1.339 1.708 1.2 1.519 0.956 1.519C0.689 1.519 0.528 1.733 0.528 1.981C0.528 2.239 0.683 2.633 1.289 2.633C1.556 2.633 2.075 2.511 2.075 1.833C2.075 1.603 2.003 1.225 1.961 0.975C1.953 0.928 1.956 0.933 2.011 0.908C2.417 0.747 2.683 0.408 2.683 -0.044C2.683 -0.556 2.308 -1.008 1.719 -1.008C1.617 -1.008 1.617 -1.008 1.603 -1.081ZM1.881 -3.772C2.011 -3.772 2.119 -3.664 2.119 -3.444C2.119 -3 1.739 -2.639 1.425 -2.364C1.397 -2.339 1.381 -2.344 1.372 -2.397C1.356 -2.5 1.347 -2.636 1.347 -2.764C1.347 -3.389 1.636 -3.772 1.881 -3.772ZM1.444 -1.047C1.456 -0.972 1.456 -0.975 1.383 -0.953C1.033 -0.833 0.803 -0.517 0.803 -0.175C0.803 0.183 0.992 0.439 1.264 0.533C1.297 0.544 1.344 0.556 1.372 0.556C1.403 0.556 1.419 0.536 1.419 0.511C1.419 0.483 1.389 0.472 1.361 0.461C1.192 0.389 1.072 0.217 1.072 0.033C1.072 -0.197 1.228 -0.367 1.472 -0.436C1.536 -0.453 1.544 -0.447 1.553 -0.403L1.753 0.789C1.761 0.833 1.756 0.833 1.697 0.844C1.633 0.856 1.553 0.864 1.472 0.864C0.772 0.864 0.319 0.475 0.319 -0.081C0.319 -0.317 0.361 -0.633 0.692 -1.008C0.933 -1.275 1.117 -1.425 1.303 -1.575C1.344 -1.608 1.353 -1.603 1.361 -1.561ZM1.719 -0.411C1.711 -0.461 1.717 -0.472 1.764 -0.467C2.089 -0.439 2.356 -0.167 2.356 0.183C2.356 0.436 2.203 0.639 1.981 0.753C1.933 0.775 1.925 0.775 1.917 0.728Z"/>
     <path id="f-clef" d="M1.008 -1.047C0.311 -1.047 0 -0.539 0 -0.156C0 0.164 0.167 0.439 0.492 0.439C0.744 0.439 0.917 0.264 0.917 0.017C0.917 -0.239 0.728 -0.4 0.533 -0.4C0.425 -0.4 0.383 -0.372 0.333 -0.372C0.281 -0.372 0.267 -0.403 0.267 -0.444C0.267 -0.603 0.508 -0.897 0.917 -0.897C1.339 -0.897 1.525 -0.481 1.525 0.147C1.525 1.264 0.972 1.889 0.039 2.419C0.003 2.439 -0.019 2.461 -0.019 2.492C-0.019 2.517 -0.003 2.539 0.033 2.539C0.053 2.539 0.075 2.533 0.1 2.519C1.083 2.039 2.125 1.328 2.125 0.111C2.125 -0.583 1.7 -1.047 1.008 -1.047ZM2.517 -0.719C2.392 -0.719 2.297 -0.625 2.297 -0.5C2.297 -0.375 2.392 -0.281 2.517 -0.281C2.639 -0.281 2.736 -0.375 2.736 -0.5C2.736 -0.625 2.639 -0.719 2.517 -0.719ZM2.519 0.283C2.397 0.283 2.303 0.375 2.303 0.5C2.303 0.625 2.397 0.717 2.519 0.717C2.644 0.717 2.736 0.625 2.736 0.5C2.736 0.375 2.644 0.283 2.519 0.283Z"/>
     <path id="g-head" d="M0.389 0.5C0.744 0.5 1.181 0.172 1.181 -0.167C1.181 -0.372 1.019 -0.5 0.792 -0.5C0.353 -0.5 0 -0.175 0 0.167C0 0.375 0.172 0.5 0.389 0.5Z"/>
+    <path id="g-headh" d="M0.389 0.5C1.047 0.5 1.181 -0.036 1.181 -0.167C1.181 -0.372 1.017 -0.5 0.783 -0.5C0.189 -0.5 0 -0.039 0 0.167C0 0.381 0.167 0.5 0.389 0.5ZM0.3 0.347C0.217 0.347 0.167 0.303 0.139 0.256C0.128 0.233 0.117 0.203 0.117 0.175C0.117 -0.019 0.697 -0.336 0.883 -0.336C0.961 -0.336 1.003 -0.3 1.033 -0.253C1.044 -0.228 1.056 -0.203 1.056 -0.175C1.056 -0.003 0.492 0.347 0.3 0.347Z"/>
+    <path id="g-headw" d="M0.864 -0.5C0.333 -0.5 0 -0.281 0 -0.008C0 0.261 0.228 0.5 0.825 0.5C1.481 0.5 1.689 0.272 1.689 -0.008C1.689 -0.292 1.236 -0.5 0.864 -0.5ZM0.444 -0.253C0.489 -0.392 0.636 -0.411 0.761 -0.411C1.036 -0.411 1.256 -0.117 1.256 0.125C1.256 0.247 1.203 0.361 1.072 0.392C1.033 0.403 0.989 0.408 0.947 0.408C0.803 0.408 0.656 0.311 0.572 0.2C0.492 0.108 0.433 -0.028 0.433 -0.156C0.433 -0.189 0.436 -0.219 0.444 -0.253Z"/>
+    <path id="g-restw" d="M1.128 0.436L1.128 0.067C1.128 0.008 1.081 -0.036 1.025 -0.036L0.103 -0.036C0.044 -0.036 0 0.008 0 0.067L0 0.436C0 0.492 0.044 0.539 0.103 0.539L1.025 0.539C1.081 0.539 1.128 0.492 1.128 0.436Z"/>
+    <path id="g-resth" d="M1.128 -0.097L1.128 -0.464C1.128 -0.525 1.081 -0.567 1.025 -0.567L0.103 -0.567C0.044 -0.567 0 -0.525 0 -0.464L0 -0.097C0 -0.039 0.044 0.008 0.103 0.008L1.025 0.008C1.081 0.008 1.128 -0.039 1.128 -0.097Z"/>
+    <path id="g-brace" d="M1 0C0.1 0.04 0.75 0.42 0 0.5C0.75 0.58 0.1 0.96 1 1C0.3 0.96 1.15 0.58 0 0.5C1.15 0.42 0.3 0.04 1 0Z"/>
+    <path id="g-ts2" d="M1.683 0.364C1.683 0.317 1.664 0.308 1.636 0.308C1.603 0.308 1.592 0.325 1.583 0.353L1.581 0.356C1.539 0.456 1.508 0.533 1.425 0.533C1.403 0.533 1.383 0.528 1.356 0.519C1.303 0.5 1.275 0.497 1.236 0.475C1.156 0.444 0.967 0.381 0.803 0.381C0.753 0.381 0.7 0.389 0.656 0.403C0.744 0.261 1.083 0.139 1.172 0.117C1.453 0.039 1.703 -0.075 1.703 -0.408C1.703 -0.833 1.289 -1.017 0.917 -1.017C0.636 -1.017 0.389 -0.992 0.192 -0.764C0.125 -0.681 0.081 -0.581 0.081 -0.472C0.081 -0.417 0.092 -0.361 0.117 -0.3C0.175 -0.175 0.3 -0.081 0.444 -0.081C0.689 -0.081 0.725 -0.333 0.725 -0.433C0.725 -0.672 0.447 -0.683 0.447 -0.764C0.456 -0.819 0.528 -0.917 0.764 -0.917C1.119 -0.917 1.125 -0.647 1.125 -0.533C1.125 -0.167 0.825 0.108 0.536 0.283C0.317 0.425 0.161 0.619 0.092 0.881L0.089 0.892C0.089 0.944 0.133 1.028 0.192 1.028C0.281 1.028 0.328 0.783 0.564 0.783C0.725 0.783 0.783 1 1.139 1C1.311 1 1.619 0.983 1.683 0.364Z"/>
+    <path id="g-ts3" d="M0.853 -0.992C0.847 -0.992 0.844 -0.992 0.836 -0.992L0.808 -0.997C0.803 -0.997 0.797 -0.997 0.792 -0.997C0.447 -0.997 0.103 -0.767 0.103 -0.556C0.103 -0.425 0.181 -0.247 0.428 -0.233L0.447 -0.233C0.625 -0.233 0.711 -0.361 0.711 -0.492L0.711 -0.525C0.7 -0.672 0.6 -0.681 0.581 -0.689C0.561 -0.697 0.5 -0.689 0.5 -0.744L0.5 -0.761C0.508 -0.828 0.633 -0.861 0.667 -0.861C1.008 -0.861 1.039 -0.647 1.039 -0.553L1.039 -0.525C1.039 -0.228 0.803 -0.111 0.553 -0.1C0.511 -0.097 0.456 -0.075 0.456 -0.033C0.456 0.017 0.525 0.017 0.556 0.017C1.017 0.017 1.053 0.328 1.053 0.381C1.053 0.803 0.836 0.853 0.747 0.853C0.733 0.853 0.717 0.847 0.711 0.847C0.681 0.844 0.603 0.844 0.6 0.783L0.6 0.764C0.6 0.675 0.689 0.617 0.692 0.5C0.692 0.333 0.575 0.211 0.403 0.211C0.389 0.211 0.375 0.211 0.361 0.217C0.292 0.228 0.217 0.267 0.167 0.319C0.1 0.381 0.081 0.475 0.081 0.564C0.089 0.875 0.372 0.997 0.764 1.003L0.8 1.003C1.197 1.003 1.603 0.8 1.603 0.447L1.603 0.419C1.597 0.303 1.567 0.228 1.492 0.139C1.467 0.108 1.436 0.081 1.397 0.056L1.311 0.008L1.181 -0.028C1.161 -0.033 1.147 -0.033 1.139 -0.047C1.136 -0.056 1.136 -0.061 1.136 -0.067C1.136 -0.083 1.139 -0.1 1.153 -0.103C1.197 -0.117 1.239 -0.119 1.275 -0.139C1.436 -0.217 1.519 -0.319 1.519 -0.503C1.519 -0.872 1.019 -0.981 0.853 -0.992Z"/>
+    <path id="g-restq" d="M0.311 0.153C0.375 0.233 0.433 0.308 0.483 0.392C0.492 0.408 0.508 0.439 0.508 0.447C0.508 0.453 0.508 0.461 0.503 0.464C0.497 0.481 0.481 0.483 0.461 0.483C0.444 0.483 0.411 0.475 0.397 0.472C0.392 0.472 0.383 0.472 0.381 0.472L0.347 0.461C0.139 0.461 0.003 0.647 0.003 0.844C0.003 1.044 0.175 1.239 0.467 1.464C0.5 1.489 0.539 1.5 0.572 1.5C0.6 1.5 0.628 1.492 0.633 1.475C0.636 1.464 0.639 1.456 0.639 1.447C0.639 1.411 0.608 1.381 0.575 1.353C0.525 1.353 0.481 1.244 0.472 1.208C0.461 1.175 0.456 1.139 0.456 1.103C0.456 0.939 0.539 0.811 0.708 0.811C0.825 0.811 0.956 0.856 1.025 0.881L1.028 0.883C1.044 0.889 1.053 0.889 1.061 0.889C1.072 0.889 1.081 0.883 1.081 0.872C1.081 0.825 0.975 0.692 0.933 0.644C0.781 0.461 0.656 0.311 0.656 0.089C0.656 0.083 0.656 0.081 0.656 0.075L0.661 0.047C0.661 0.044 0.661 0.039 0.661 0.036C0.675 -0.197 0.819 -0.389 0.925 -0.553C0.936 -0.572 0.939 -0.592 0.939 -0.611C0.939 -0.653 0.925 -0.689 0.925 -0.689C0.925 -0.689 0.333 -1.392 0.264 -1.461C0.244 -1.481 0.217 -1.492 0.192 -1.492C0.153 -1.492 0.111 -1.464 0.111 -1.408C0.111 -1.389 0.117 -1.367 0.128 -1.344C0.144 -1.3 0.372 -1.097 0.372 -0.808C0.372 -0.661 0.311 -0.489 0.133 -0.3C0.092 -0.261 0.075 -0.217 0.075 -0.183C0.075 -0.128 0.117 -0.089 0.117 -0.089Z"/>
+    <path id="g-rest8" d="M0.536 -0.428C0.536 -0.575 0.417 -0.697 0.267 -0.697C0.119 -0.697 0 -0.575 0 -0.428C0 -0.344 0.047 -0.272 0.108 -0.225C0.172 -0.181 0.247 -0.156 0.325 -0.156C0.381 -0.156 0.436 -0.167 0.481 -0.183C0.536 -0.2 0.572 -0.217 0.625 -0.244C0.633 -0.247 0.639 -0.247 0.644 -0.247C0.661 -0.247 0.664 -0.233 0.664 -0.211C0.664 -0.2 0.664 -0.183 0.661 -0.167C0.647 -0.108 0.361 0.689 0.289 0.953C0.289 1 0.381 1.003 0.403 1.003C0.447 1.003 0.503 0.997 0.544 0.964C0.556 0.956 0.947 -0.447 0.947 -0.447C0.964 -0.519 0.983 -0.583 0.989 -0.603C0.989 -0.644 0.947 -0.664 0.939 -0.667C0.933 -0.667 0.919 -0.667 0.897 -0.653C0.867 -0.628 0.667 -0.389 0.536 -0.389Z"/>
+    <path id="g-rest16" d="M0.833 -0.444C0.833 -0.597 0.711 -0.717 0.561 -0.717C0.411 -0.717 0.289 -0.597 0.289 -0.444C0.289 -0.281 0.456 -0.172 0.608 -0.172C0.717 -0.172 0.828 -0.208 0.919 -0.261C0.933 -0.264 0.939 -0.267 0.947 -0.267C0.961 -0.267 0.967 -0.261 0.967 -0.239C0.967 -0.175 0.764 0.419 0.736 0.481C0.703 0.556 0.597 0.603 0.539 0.603C0.544 0.589 0.544 0.575 0.544 0.564C0.544 0.411 0.419 0.292 0.272 0.292C0.119 0.292 0 0.411 0 0.564C0 0.728 0.167 0.836 0.319 0.836C0.425 0.836 0.528 0.8 0.619 0.753C0.628 0.753 0.636 0.761 0.636 0.775L0.633 0.781C0.633 0.783 0.633 0.783 0.633 0.783L0.253 1.917C0.253 1.917 0.253 1.919 0.253 1.919L0.247 1.925C0.247 1.961 0.283 2 0.372 2C0.489 2 0.508 1.953 0.525 1.908L0.989 0.383C1.092 0.044 1.167 -0.225 1.167 -0.225C1.167 -0.225 1.267 -0.575 1.275 -0.628C1.275 -0.636 1.281 -0.639 1.281 -0.644C1.281 -0.667 1.247 -0.683 1.239 -0.689C1.219 -0.689 1.208 -0.681 1.197 -0.672C1.167 -0.647 0.967 -0.408 0.833 -0.403Z"/>
+    <path id="g-flag8" d="M0.953 3.161C0.953 3.161 1.056 2.781 1.056 2.467C1.056 1.967 0.847 1.497 0.597 1.097C0.392 0.781 0.225 0.436 0.161 0.053C0.147 -0.011 0.117 -0.036 0.075 -0.036C0.033 -0.036 0 -0.025 0 0.025L0 0.981C0.264 1.028 0.644 1.572 0.789 1.911C0.847 2.047 0.883 2.275 0.883 2.511C0.883 2.692 0.856 2.881 0.789 3.061C0.781 3.083 0.775 3.103 0.775 3.119C0.775 3.183 0.817 3.219 0.839 3.236C0.864 3.253 0.933 3.228 0.953 3.161Z"/>
+    <path id="g-flag16" d="M1.089 3.183C1.103 3.164 1.117 2.936 1.117 2.744L1.117 2.656C1.117 2.489 1.072 2.325 1 2.175C1 2.164 0.997 2.156 0.997 2.139C0.997 2.133 0.997 2.125 1 2.111C1.011 2.089 1.1 1.847 1.1 1.603C1.1 1.553 1.097 1.508 1.089 1.461C1.047 1.189 0.944 1.075 0.656 0.764C0.439 0.533 0.217 0.467 0.147 0.044C0.139 0 0.092 -0.008 0.067 -0.008C0.044 -0.008 0 0.003 0 0.033L0 1.583L0.019 1.583C0.267 1.592 0.553 1.6 0.828 2.161C0.919 2.353 0.956 2.547 0.956 2.756C0.956 2.872 0.944 2.992 0.925 3.111C0.919 3.128 0.919 3.136 0.919 3.147C0.919 3.2 0.953 3.253 1.008 3.253C1.036 3.253 1.064 3.236 1.089 3.183ZM0.836 1.836C0.772 1.736 0.703 1.656 0.619 1.561C0.433 1.344 0.247 1.247 0.164 0.919C0.161 0.917 0.161 0.911 0.161 0.908C0.161 0.892 0.183 0.867 0.217 0.867L0.247 0.867C0.492 0.867 0.708 1.092 0.839 1.289C0.911 1.392 0.947 1.517 0.947 1.644C0.947 1.672 0.947 1.697 0.944 1.725C0.936 1.756 0.936 1.797 0.917 1.828C0.911 1.839 0.883 1.853 0.864 1.853C0.853 1.853 0.844 1.847 0.836 1.836Z"/>
+    <path id="g-dot" d="M0.4 0C0.4 -0.111 0.311 -0.2 0.2 -0.2C0.089 -0.2 0 -0.111 0 0C0 0.111 0.089 0.2 0.2 0.2C0.311 0.2 0.4 0.111 0.4 0Z"/>
     <path id="g-ts4" d="M1.447 0.297L1.447 -0.561C1.447 -0.592 1.444 -0.628 1.4 -0.628C1.364 -0.628 1.344 -0.619 1.319 -0.592L0.939 -0.133C0.925 -0.111 0.903 -0.089 0.903 -0.039L0.903 0.297L0.364 0.297C0.683 0.025 1.325 -0.883 1.336 -0.933L1.339 -0.944C1.339 -0.981 1.311 -1.003 1.281 -1.003C1.244 -1.003 1.081 -0.997 1.008 -0.997C0.936 -0.997 0.756 -1.003 0.725 -1.003C0.689 -1.003 0.633 -0.992 0.633 -0.928C0.633 -0.433 0.239 0.125 0.119 0.292L0.097 0.325C0.097 0.325 0.097 0.328 0.097 0.328L0.092 0.333C0.083 0.353 0.081 0.367 0.081 0.381C0.081 0.419 0.111 0.447 0.161 0.447L0.903 0.447L0.903 0.7C0.903 0.808 0.817 0.839 0.744 0.839C0.681 0.839 0.653 0.875 0.653 0.917C0.653 0.956 0.667 1 0.728 1L1.581 1C1.619 1 1.661 0.972 1.661 0.917C1.661 0.861 1.611 0.836 1.572 0.836C1.533 0.836 1.447 0.811 1.447 0.683L1.447 0.447L1.739 0.447C1.781 0.447 1.8 0.419 1.8 0.372C1.8 0.325 1.783 0.297 1.739 0.297Z"/>
   </defs>
 </svg>
@@ -186,10 +246,11 @@ h2{font-family:var(--font-display);font-weight:600;font-size:22px;line-height:1.
     <div class="tabs" role="tablist" aria-label="Modo">
       <button role="tab" id="tab-treino" aria-controls="panel-treino" aria-selected="true">Treino</button>
       <button role="tab" id="tab-folha" aria-controls="panel-folha" aria-selected="false">Folha de leitura</button>
+      <button role="tab" id="tab-ritmo" aria-controls="panel-ritmo" aria-selected="false">Ritmo</button>
     </div>
   </header>
 
-  <section class="settings" aria-label="Ajustes">
+  <section class="settings" id="global-settings" aria-label="Ajustes">
     <div class="field field-range">
       <span class="flabel" id="lbl-ext">Extensão</span>
       <div class="chips" role="radiogroup" aria-labelledby="lbl-ext" id="presets"></div>
@@ -201,6 +262,7 @@ h2{font-family:var(--font-display);font-weight:600;font-size:22px;line-height:1.
         <div class="seg" role="radiogroup" aria-labelledby="lbl-clave">
           <button role="radio" id="cl-sol" data-clef="sol" aria-checked="true">Sol</button>
           <button role="radio" id="cl-fa" data-clef="fa" aria-checked="false">Fá</button>
+          <button role="radio" id="cl-grand" data-clef="grand" aria-checked="false">Sol + Fá</button>
         </div>
       </div>
       <div class="field">
@@ -238,8 +300,8 @@ h2{font-family:var(--font-display);font-weight:600;font-size:22px;line-height:1.
         <dl class="figs" id="figs"></dl>
       </section>
       <section class="weak" aria-labelledby="h-weak">
-        <h2 id="h-weak">Notas que você mais erra</h2>
-        <p class="note" id="weak-note">Elas passam a aparecer com mais frequência no treino.</p>
+        <h2 id="h-weak">Notas que pedem mais treino</h2>
+        <p class="note" id="weak-note">As que você erra ou demora mais aparecem com mais frequência no treino.</p>
         <ol id="weak-list"></ol>
       </section>
     </div>
@@ -248,8 +310,12 @@ h2{font-family:var(--font-display);font-weight:600;font-size:22px;line-height:1.
   <section id="panel-folha" role="tabpanel" aria-labelledby="tab-folha" hidden>
     <div class="card sheet">
       <div class="sheet-head">
-        <p class="sheet-intro">Leia as notas em voz alta num pulso constante, quatro por compasso, sem parar para corrigir. Depois confira com “Mostrar nomes”. Toque numa nota para ouvir.</p>
+        <p class="sheet-intro" id="sheet-intro">Leia as notas em voz alta num pulso constante, quatro por compasso, sem parar para corrigir. Depois confira com “Mostrar nomes”. Toque numa nota para ouvir.</p>
         <div class="sheet-ctrl">
+          <div class="seg" role="radiogroup" aria-label="Mãos" id="hands-seg" hidden>
+            <button role="radio" id="hd-alt" data-hands="alternadas" aria-checked="true">Mãos alternadas</button>
+            <button role="radio" id="hd-jun" data-hands="juntas" aria-checked="false">Mãos juntas</button>
+          </div>
           <button class="switch" role="switch" id="sw-names" aria-checked="false"><span class="track"></span>Mostrar nomes</button>
           <button class="btn" id="btn-newsheet">Nova folha</button>
         </div>
@@ -258,9 +324,86 @@ h2{font-family:var(--font-display);font-weight:600;font-size:22px;line-height:1.
     </div>
   </section>
 
+  <section id="panel-ritmo" role="tabpanel" aria-labelledby="tab-ritmo" hidden>
+    <fieldset class="settings" id="r-controls">
+      <legend class="sr">Ajustes do ritmo</legend>
+      <div class="field">
+        <span class="flabel" id="lbl-hands">Mãos</span>
+        <div class="seg" role="radiogroup" aria-labelledby="lbl-hands">
+          <button type="button" role="radio" id="hn-uma" data-hands-r="uma" aria-checked="true">Uma</button>
+          <button type="button" role="radio" id="hn-duas" data-hands-r="duas" aria-checked="false">Duas</button>
+        </div>
+      </div>
+      <div class="field">
+        <span class="flabel" id="lbl-meter">Compasso</span>
+        <div class="seg" role="radiogroup" aria-labelledby="lbl-meter">
+          <button type="button" role="radio" id="rm-2" data-meter="2" aria-checked="false">2/4</button>
+          <button type="button" role="radio" id="rm-3" data-meter="3" aria-checked="false">3/4</button>
+          <button type="button" role="radio" id="rm-4" data-meter="4" aria-checked="true">4/4</button>
+        </div>
+      </div>
+      <div class="field">
+        <span class="flabel" id="lbl-count">Compassos</span>
+        <div class="seg" role="radiogroup" aria-labelledby="lbl-count" id="r-counts"></div>
+      </div>
+      <div class="field">
+        <span class="flabel" id="lbl-bpm">Andamento</span>
+        <div class="bpm">
+          <button type="button" class="stepper" id="bpm-down" aria-label="Diminuir andamento em 5">−</button>
+          <input type="range" id="bpm" min="40" max="160" step="1" value="70" aria-labelledby="lbl-bpm">
+          <button type="button" class="stepper" id="bpm-up" aria-label="Aumentar andamento em 5">+</button>
+          <span class="bpm-val"><b id="bpm-val">70</b> bpm · <span id="bpm-name">Adagio</span></span>
+        </div>
+      </div>
+      <div class="field">
+        <span class="flabel" id="lbl-metro">Metrônomo</span>
+        <div class="seg" role="radiogroup" aria-labelledby="lbl-metro">
+          <button type="button" role="radio" id="mt-sempre" data-metro="sempre" aria-checked="true">Sempre</button>
+          <button type="button" role="radio" id="mt-contagem" data-metro="contagem" aria-checked="false">Só na contagem</button>
+        </div>
+      </div>
+      <div class="field">
+        <span class="flabel" id="lbl-view">Exibição</span>
+        <div class="seg" role="radiogroup" aria-labelledby="lbl-view">
+          <button type="button" role="radio" id="vw-pagina" data-view="pagina" aria-checked="true">Página inteira</button>
+          <button type="button" role="radio" id="vw-rolando" data-view="rolando" aria-checked="false">Rolando</button>
+        </div>
+      </div>
+      <div class="field" id="f-cursor">
+        <span class="flabel" id="lbl-cursor">Barra de acompanhamento</span>
+        <button type="button" class="switch" role="switch" id="sw-cursor" aria-checked="false" aria-labelledby="lbl-cursor"><span class="track"></span><span id="cursor-txt">Desligada</span></button>
+      </div>
+      <div class="field field-wide">
+        <span class="flabel" id="lbl-level">Nível</span>
+        <div class="chips" role="radiogroup" aria-labelledby="lbl-level" id="r-levels"></div>
+        <span class="flabel" id="lbl-figs">Figuras</span>
+        <div class="chips" role="group" aria-labelledby="lbl-figs" id="r-figs"></div>
+        <p class="desc" id="r-desc"></p>
+      </div>
+    </fieldset>
+    <div class="card">
+      <div class="card-head">
+        <p class="progress" id="r-status"></p>
+        <button type="button" class="txtbtn" id="r-new">Novo exercício</button>
+      </div>
+      <div class="staff-host" id="r-host"></div>
+      <div class="r-result" id="r-result" aria-live="polite" hidden></div>
+      <div class="r-state"><span class="rpad-num" id="r-num"></span><span class="rpad-lbl" id="r-lbl"></span></div>
+      <div class="rpads">
+        <div class="rpad" id="r-pad-l" data-hand="L" hidden><span class="rpad-hand">Mão esquerda</span><span class="rpad-sub">pulso · tecla F</span></div>
+        <div class="rpad" id="r-pad" data-hand="R"><span class="rpad-hand" id="r-pad-r-title">Toque aqui</span><span class="rpad-sub" id="r-pad-r-sub">ou use a barra de espaço</span></div>
+      </div>
+      <div class="r-actions">
+        <button type="button" class="btn" id="r-go">Começar</button>
+        <p class="hint" id="r-hint">No computador, toque com a barra de espaço. Esc para parar.</p>
+      </div>
+    </div>
+    <p class="calib"><span id="r-calib-txt"></span> <button type="button" class="txtbtn" id="r-calib">Calibrar atraso</button></p>
+  </section>
+
   <details class="map" id="map">
     <summary id="map-summary">Mapa das notas</summary>
-    <p class="note">Todas as notas da extensão escolhida, da mais grave à mais aguda. Toque numa nota para ouvir.</p>
+    <p class="note" id="map-note">Todas as notas da extensão escolhida, da mais grave à mais aguda. Toque numa nota para ouvir.</p>
     <div class="map-scroll"><div id="map-host" class="clickable"></div></div>
   </details>
 
@@ -273,21 +416,25 @@ h2{font-family:var(--font-display);font-weight:600;font-size:22px;line-height:1.
   var SOLF=["Dó","Ré","Mi","Fá","Sol","Lá","Si"];
   var LET=["C","D","E","F","G","A","B"];
   var SEMI=[0,2,4,5,7,9,11];
-  // Nota da 1ª linha em passos diatônicos (oitava*7 + índice da nota): Mi3/E4 na clave de Sol, Sol2/G2 na de Fá.
-  // anchor: linha em que o glifo da clave se apoia (2ª linha para Sol, 4ª linha para Fá).
+  // Notas em passos diatônicos: oitava*7 + índice da nota (Dó central = 28).
+  // base: nota da 1ª linha (Mi na clave de Sol, Sol na de Fá). anchor: linha em que o glifo da clave se apoia.
   var CLEFS={
     sol:{base:30,glyph:"#g-clef",anchor:2,name:"Sol"},
     fa:{base:18,glyph:"#f-clef",anchor:6,name:"Fá"}
   };
-  var BASE=30;
-  var CENTRAL_C=28;       // Dó central
-  var HEAD_W=1.181;       // largura da cabeça de nota, em espaços
-  var SHEET_MEASURES=24;
+  var MODE_NAMES={sol:"Sol",fa:"Fá",grand:"Sol e Fá"};
+  var CENTRAL_C=28;
+  var HEAD_W=1.181, WHOLE_W=1.689, REST_W=1.128;   // larguras dos glifos, em espaços
+  var GAP=6;                                       // espaços entre as duas pautas
+  var BRACE_W=1.2;                                 // largura da chave que une as pautas
 
   function rng(a,b){var r=[];for(var i=a;i<=b;i++)r.push(i);return r;}
   function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
   function f(v){return Math.round(v*100)/100;}
+  function letterOf(d){return ((d%7)+7)%7;}
+  function joinNames(list,n){var a=list.map(n);return a.slice(0,-1).join(", ")+" e "+a[a.length-1];}
 
+  /* Extensões para uma clave: posições relativas à 1ª linha (0 = 1ª linha, 8 = 5ª linha). */
   var PRESETS=[
     {id:"linhas",label:"Linhas",s:[0,2,4,6,8],desc:function(n){return "Só as cinco linhas: "+joinNames([0,2,4,6,8],n)+".";}},
     {id:"espacos",label:"Espaços",s:[1,3,5,7],desc:function(n){return "Só os quatro espaços: "+joinNames([1,3,5,7],n)+".";}},
@@ -297,38 +444,74 @@ h2{font-family:var(--font-display);font-weight:600;font-size:22px;line-height:1.
     {id:"agudas",label:"Suplementares agudas",s:rng(4,12),desc:function(n){return "Do "+n(4)+" da 3ª linha ao "+n(12)+" na 2ª linha suplementar superior"+(settings.clef==="fa"?", passando pelo Dó central.":".");}},
     {id:"tudo",label:"Tudo",s:rng(-4,12),desc:function(n){return "Do "+n(-4)+" grave ao "+n(12)+" agudo, com duas linhas suplementares de cada lado.";}}
   ];
-  function joinNames(list,n){var a=list.map(n);return a.slice(0,-1).join(", ")+" e "+a[a.length-1];}
+  /* Extensões para as duas pautas (piano): posições relativas à 1ª linha de cada clave. */
+  var GRAND_PRESETS=[
+    {id:"posicao",label:"Posição de Dó",sol:rng(-2,2),fa:rng(3,7),fingers:{sol:[1,2,3,4,5],fa:[5,4,3,2,1]},
+      desc:function(n){return "Mão direita do Dó central ao "+n(32)+", dedos 1 a 5. Mão esquerda do "+n(21)+" ao "+n(25)+" uma oitava abaixo, dedos 5 a 1. Dá para tocar tudo sem mover as mãos.";}},
+    {id:"pautas",label:"Duas pautas",sol:rng(0,8),fa:rng(0,8),
+      desc:function(n){return "As linhas e os espaços das duas pautas, sem linhas suplementares. Clave de Fá: do "+n(18)+" ao "+n(26)+". Clave de Sol: do "+n(30)+" ao "+n(38)+".";}},
+    {id:"centro",label:"Região do Dó central",sol:rng(-4,2),fa:rng(6,12),
+      desc:function(n){return "Clave de Fá do "+n(24)+" da 4ª linha ao "+n(30)+" acima da pauta. Clave de Sol do "+n(26)+" abaixo da pauta ao "+n(32)+" da 2ª linha. O Dó central aparece nas duas pautas, numa linha suplementar.";}},
+    {id:"vizinhas",label:"Pautas e vizinhas",sol:rng(-1,9),fa:rng(-1,9),
+      desc:function(n){return "As duas pautas e mais uma nota logo abaixo e logo acima de cada uma: clave de Fá do "+n(17)+" ao "+n(27)+", clave de Sol do "+n(29)+" ao "+n(39)+".";}},
+    {id:"tudo",label:"Tudo",sol:rng(-4,12),fa:rng(-4,12),
+      desc:function(n){return "Do "+n(14)+" duas linhas abaixo da clave de Fá ao "+n(42)+" duas linhas acima da clave de Sol.";}}
+  ];
 
   /* ---------- armazenamento ---------- */
   var store={
     get:function(k,fb){try{var v=localStorage.getItem(k);return v?JSON.parse(v):fb;}catch(e){return fb;}},
     set:function(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}
   };
-  function blankStats(){return {answered:0,correct:0,timeMs:0,streak:0,best:0,per:{}};}
-  var settings=Object.assign({preset:"pauta",naming:"solfejo",sound:true,tab:"treino",showNames:false,clef:"sol"},store.get("lcs-settings",{}));
+  // per[clave:nota] = {n: respostas, w: erros, r: últimos resultados (1 = erro), t: últimos tempos de acerto em ms}
+  function blankStats(){return {answered:0,correct:0,timeMs:0,timed:0,streak:0,best:0,per:{}};}
+  var settings=Object.assign({preset:"pauta",gpreset:"posicao",naming:"solfejo",sound:true,tab:"treino",showNames:false,clef:"sol",hands:"alternadas"},store.get("lcs-settings",{}));
+  if(!MODE_NAMES[settings.clef]) settings.clef="sol";
   if(!PRESETS.some(function(p){return p.id===settings.preset;})) settings.preset="pauta";
-  if(!CLEFS[settings.clef]) settings.clef="sol";
-  BASE=CLEFS[settings.clef].base;
+  if(!GRAND_PRESETS.some(function(p){return p.id===settings.gpreset;})) settings.gpreset="posicao";
+  if(settings.hands!=="juntas") settings.hands="alternadas";
   var stats=Object.assign(blankStats(),store.get("lcs-stats",{}));
   if(!stats.per||typeof stats.per!=="object") stats.per={};
   // Estatísticas antigas eram só da clave de Sol e usavam a nota como chave.
   Object.keys(stats.per).forEach(function(k){if(k.indexOf(":")<0){stats.per["sol:"+k]=stats.per[k];delete stats.per[k];}});
-  function perKey(d){return settings.clef+":"+d;}
+  if(typeof stats.timed!=="number") stats.timed=stats.answered;
   function saveSettings(){store.set("lcs-settings",settings);}
   function saveStats(){store.set("lcs-stats",stats);}
 
-  function preset(){for(var i=0;i<PRESETS.length;i++)if(PRESETS[i].id===settings.preset)return PRESETS[i];return PRESETS[2];}
-  function nameOf(d){return (settings.naming==="letras"?LET:SOLF)[((d%7)+7)%7];}
-  function nameS(s){return nameOf(BASE+s);}
+  function isGrand(){return settings.clef==="grand";}
+  function staves(){return isGrand()?["sol","fa"]:[settings.clef];}
+  function curPresets(){return isGrand()?GRAND_PRESETS:PRESETS;}
+  function curPreset(){
+    var id=isGrand()?settings.gpreset:settings.preset, l=curPresets();
+    for(var i=0;i<l.length;i++) if(l[i].id===id) return l[i];
+    return l[0];
+  }
+  // Notas possíveis na extensão atual: {d: nota, st: clave em que aparece}.
+  function pool(){
+    var p=curPreset();
+    if(isGrand()) return p.sol.map(function(s){return {d:CLEFS.sol.base+s,st:"sol"};}).concat(p.fa.map(function(s){return {d:CLEFS.fa.base+s,st:"fa"};}));
+    var b=CLEFS[settings.clef].base;
+    return p.s.map(function(s){return {d:b+s,st:settings.clef};});
+  }
+  function staffDs(st){return pool().filter(function(n){return n.st===st;}).map(function(n){return n.d;});}
+  function perKey(n){return n.st+":"+n.d;}
+  function nameOf(d){return (settings.naming==="letras"?LET:SOLF)[letterOf(d)];}
   function letterName(i){return (settings.naming==="letras"?LET:SOLF)[i];}
   function ord(n,fem){return n+(fem?"ª":"º");}
-  function posName(d){
-    var s=d-BASE, t;
+  function posName(d,st){
+    var s=d-CLEFS[st].base, t;
     if(s>=0&&s<=8){t=(s%2===0)?ord(s/2+1,true)+" linha":ord((s+1)/2,false)+" espaço";}
     else if(s<0){var k=-s;t=(k%2===0)?ord(k/2,true)+" linha suplementar inferior":ord((k+1)/2,false)+" espaço suplementar inferior";}
     else {var k2=s-8;t=(k2%2===0)?ord(k2/2,true)+" linha suplementar superior":ord((k2+1)/2,false)+" espaço suplementar superior";}
+    if(isGrand()) t+=" da clave de "+CLEFS[st].name;
     if(d===CENTRAL_C) t+=" (Dó central)";
     return t;
+  }
+  function fingerOf(n){
+    if(!isGrand()) return null;
+    var p=curPreset(); if(!p.fingers) return null;
+    var i=p[n.st].indexOf(n.d-CLEFS[n.st].base);
+    return i<0?null:p.fingers[n.st][i];
   }
   function freq(d){var oct=Math.floor(d/7),l=d-oct*7;var midi=12*(oct+1)+SEMI[l];return 440*Math.pow(2,(midi-69)/12);}
 
@@ -349,80 +532,142 @@ h2{font-family:var(--font-display);font-weight:600;font-size:22px;line-height:1.
   }
 
   /* ---------- desenho da pauta ---------- */
-  function noteSVG(it,sp,y,top,yB){
-    var s=it.s, yy=y(s), hw=HEAD_W*sp, xl=it.x-hw/2;
+  // it: {x, st, d, dur (1 semínima, 2 mínima, 4 semibreve), rest, cls, label, lcls, lsize, hit, finger}
+  function noteSVG(it,g){
+    var sp=g.sp, st=it.st, top=g.tops[st], yB=top+4*sp;
+    if(it.rest){
+      var rx=f(it.x-REST_W*sp/2);
+      return it.dur===4
+        ? '<use href="#g-restw" class="gl" transform="translate('+rx+' '+g.y(st,6)+') scale('+sp+')"/>'
+        : '<use href="#g-resth" class="gl" transform="translate('+rx+' '+g.y(st,4)+') scale('+sp+')"/>';
+    }
+    var s=it.d-CLEFS[st].base, yy=g.y(st,s), whole=it.dur===4;
+    var hw=(whole?WHOLE_W:HEAD_W)*sp, xl=it.x-hw/2;
     var llw=Math.max(1,f(0.16*sp)), ll=hw+0.8*sp, sw=Math.max(1,f(0.12*sp));
-    var q='<g class="nt '+(it.cls||"")+'"'+(it.d!=null?' data-d="'+it.d+'"':"")+'>';
-    if(it.hit){var hy=top-3*sp;q+='<rect x="'+f(it.x-it.hit/2)+'" y="'+f(hy)+'" width="'+f(it.hit)+'" height="'+f(yB+3*sp-hy)+'" fill="transparent"/>';}
-    function ledger(l){var ly=y(l);return '<line class="ledger" x1="'+f(it.x-ll/2)+'" x2="'+f(it.x+ll/2)+'" y1="'+ly+'" y2="'+ly+'" stroke-width="'+llw+'"/>';}
+    var q='<g class="nt '+(it.cls||"")+'" data-d="'+it.d+'">';
+    if(it.hit) q+='<rect x="'+f(it.x-it.hit/2)+'" y="'+f(top-3*sp)+'" width="'+f(it.hit)+'" height="'+f(10*sp)+'" fill="transparent"/>';
+    function ledger(l){var ly=g.y(st,l);return '<line class="ledger" x1="'+f(it.x-ll/2)+'" x2="'+f(it.x+ll/2)+'" y1="'+ly+'" y2="'+ly+'" stroke-width="'+llw+'"/>';}
     for(var l=-2;l>=s;l-=2) q+=ledger(l);
     for(var u=10;u<=s;u+=2) q+=ledger(u);
-    var sx,y1,y2;
-    if(s>=4){sx=xl+sw/2;y1=yy+0.168*sp;y2=y(Math.min(s-7,4));}
-    else {sx=xl+hw-sw/2;y1=yy-0.168*sp;y2=y(Math.max(s+7,4));}
-    q+='<line class="stem" x1="'+f(sx)+'" x2="'+f(sx)+'" y1="'+f(y1)+'" y2="'+f(y2)+'" stroke-width="'+sw+'"/>';
-    q+='<use href="#g-head" class="head" transform="translate('+f(xl)+' '+f(yy)+') scale('+sp+')"/>';
-    if(it.label) q+='<text class="lbl '+(it.lcls||"")+'" x="'+f(it.x)+'" y="'+f(yB+4.3*sp)+'" font-size="'+f(it.lsize)+'" text-anchor="middle">'+it.label+'</text>';
+    if(!whole){
+      var sx,y1,y2;
+      if(s>=4){sx=xl+sw/2;y1=yy+0.168*sp;y2=g.y(st,Math.min(s-7,4));}
+      else {sx=xl+hw-sw/2;y1=yy-0.168*sp;y2=g.y(st,Math.max(s+7,4));}
+      q+='<line class="stem" x1="'+f(sx)+'" x2="'+f(sx)+'" y1="'+f(y1)+'" y2="'+f(y2)+'" stroke-width="'+sw+'"/>';
+    }
+    q+='<use href="'+(whole?"#g-headw":it.dur===2?"#g-headh":"#g-head")+'" class="head" transform="translate('+f(xl)+' '+f(yy)+') scale('+sp+')"/>';
+    // Nas duas pautas, os nomes da clave de Sol ficam acima dela e os da clave de Fá abaixo.
+    var above=g.grand&&st==="sol", ly=above?top-3.9*sp:yB+4.3*sp, step=1.3*(it.lsize||12);
+    if(it.label) q+='<text class="lbl '+(it.lcls||"")+'" x="'+f(it.x)+'" y="'+f(ly)+'" font-size="'+f(it.lsize)+'" text-anchor="middle">'+it.label+'</text>';
+    if(it.finger) q+='<text class="fing" x="'+f(it.x)+'" y="'+f(above?ly-step:ly+step)+'" font-size="'+f(it.lsize*0.92)+'" text-anchor="middle">'+it.finger+'</text>';
     return q+"</g>";
   }
 
-  function staffSVG(o){
-    var sp=o.sp, lw=Math.max(1,f(0.1*sp));
-    var top=Math.round(3.6*sp)+(lw===1?0.5:0);
-    var yB=top+4*sp, H=Math.ceil(yB+o.bottom*sp);
-    function y(s){return f(top+(8-s)*sp/2);}
-    var x0=1, xe=o.endX, p=[];
-    if(o.band){var by=top-2.9*sp;p.push('<rect class="band" x="'+f(o.band.x)+'" y="'+f(by)+'" width="'+f(o.band.w)+'" height="'+f(H-0.2*sp-by)+'" rx="'+f(0.45*sp)+'"/>');}
-    for(var i=0;i<5;i++){var ly=y(i*2);p.push('<line class="sl" x1="'+x0+'" x2="'+f(xe)+'" y1="'+ly+'" y2="'+ly+'" stroke-width="'+lw+'"/>');}
-    var cl=CLEFS[settings.clef];
-    p.push('<use href="'+cl.glyph+'" class="gl" transform="translate('+f(x0+0.45*sp)+' '+y(cl.anchor)+') scale('+sp+')"/>');
-    if(o.ts){p.push('<use href="#g-ts4" class="gl" transform="translate('+f(o.tsX)+' '+y(6)+') scale('+sp+')"/>');p.push('<use href="#g-ts4" class="gl" transform="translate('+f(o.tsX)+' '+y(2)+') scale('+sp+')"/>');}
-    if(o.mnum) p.push('<text class="mnum" x="'+f(x0+0.15*sp)+'" y="'+f(top-1.2*sp)+'" font-size="'+f(Math.max(11,1.2*sp))+'">'+o.mnum+'</text>');
-    var bw=Math.max(1,f(0.13*sp));
-    (o.bars||[]).forEach(function(bx){p.push('<line class="bar" x1="'+f(bx)+'" x2="'+f(bx)+'" y1="'+y(8)+'" y2="'+y(0)+'" stroke-width="'+bw+'"/>');});
+  function systemSVG(o){
+    var sp=o.sp, sts=o.staves, grand=sts.length>1, lw=Math.max(1,f(0.1*sp)), half=(lw===1?0.5:0);
+    var tops={}; tops[sts[0]]=Math.round(o.topPad*sp)+half;
+    if(grand) tops[sts[1]]=tops[sts[0]]+Math.round((4+GAP)*sp);
+    var yTop=tops[sts[0]], yEnd=tops[sts[sts.length-1]]+4*sp, H=Math.ceil(yEnd+o.bottom*sp);
+    var g={sp:sp,tops:tops,grand:grand,y:function(st,s){return f(tops[st]+(8-s)*sp/2);}};
+    var x0=1+(grand?(BRACE_W+0.35)*sp:0), xe=o.endX, p=[], bw=Math.max(1,f(0.13*sp));
+    if(o.band) p.push('<rect class="band" x="'+f(o.band.x)+'" y="'+f(0.2*sp)+'" width="'+f(o.band.w)+'" height="'+f(H-0.4*sp)+'" rx="'+f(0.45*sp)+'"/>');
+    sts.forEach(function(st){
+      for(var i=0;i<5;i++){var ly=g.y(st,i*2);p.push('<line class="sl" x1="'+f(x0)+'" x2="'+f(xe)+'" y1="'+ly+'" y2="'+ly+'" stroke-width="'+lw+'"/>');}
+    });
+    if(grand){
+      p.push('<use href="#g-brace" class="gl" transform="translate(1 '+f(yTop-0.1*sp)+') scale('+f(BRACE_W*sp)+' '+f(yEnd-yTop+0.2*sp)+')"/>');
+      p.push('<line class="bar" x1="'+f(x0+bw/2)+'" x2="'+f(x0+bw/2)+'" y1="'+f(yTop)+'" y2="'+f(yEnd)+'" stroke-width="'+bw+'"/>');
+    }
+    sts.forEach(function(st){
+      var cl=CLEFS[st];
+      p.push('<use href="'+cl.glyph+'" class="gl" transform="translate('+f(x0+0.45*sp)+' '+g.y(st,cl.anchor)+') scale('+sp+')"/>');
+      if(o.ts){
+        p.push('<use href="#g-ts4" class="gl" transform="translate('+f(o.tsX)+' '+g.y(st,6)+') scale('+sp+')"/>');
+        p.push('<use href="#g-ts4" class="gl" transform="translate('+f(o.tsX)+' '+g.y(st,2)+') scale('+sp+')"/>');
+      }
+    });
+    if(o.mnum) p.push('<text class="mnum" x="'+f(x0+0.15*sp)+'" y="'+f(yTop-1.2*sp)+'" font-size="'+f(Math.max(11,1.2*sp))+'">'+o.mnum+'</text>');
+    (o.bars||[]).forEach(function(bx){p.push('<line class="bar" x1="'+f(bx)+'" x2="'+f(bx)+'" y1="'+f(yTop)+'" y2="'+f(yEnd)+'" stroke-width="'+bw+'"/>');});
     if(o.final){
       var tw=0.5*sp, tx=xe-tw, thin=tx-0.4*sp-bw/2;
-      p.push('<rect class="thick" x="'+f(tx)+'" y="'+f(y(8)-lw/2)+'" width="'+f(tw)+'" height="'+f(4*sp+lw)+'"/>');
-      p.push('<line class="bar" x1="'+f(thin)+'" x2="'+f(thin)+'" y1="'+y(8)+'" y2="'+y(0)+'" stroke-width="'+bw+'"/>');
+      p.push('<rect class="thick" x="'+f(tx)+'" y="'+f(yTop-lw/2)+'" width="'+f(tw)+'" height="'+f(yEnd-yTop+lw)+'"/>');
+      p.push('<line class="bar" x1="'+f(thin)+'" x2="'+f(thin)+'" y1="'+f(yTop)+'" y2="'+f(yEnd)+'" stroke-width="'+bw+'"/>');
     } else if(o.endBar){
-      p.push('<line class="bar" x1="'+f(xe-bw/2)+'" x2="'+f(xe-bw/2)+'" y1="'+y(8)+'" y2="'+y(0)+'" stroke-width="'+bw+'"/>');
+      p.push('<line class="bar" x1="'+f(xe-bw/2)+'" x2="'+f(xe-bw/2)+'" y1="'+f(yTop)+'" y2="'+f(yEnd)+'" stroke-width="'+bw+'"/>');
     }
-    o.items.forEach(function(it){p.push(noteSVG(it,sp,y,top,yB));});
+    o.items.forEach(function(it){p.push(noteSVG(it,g));});
     var size=o.fixed?' width="'+Math.ceil(o.W)+'" height="'+H+'"':' class="staff"';
     return '<svg'+size+' viewBox="0 0 '+f(o.W)+' '+H+'" role="img" aria-label="'+o.aria+'" xmlns="http://www.w3.org/2000/svg">'+p.join("")+"</svg>";
   }
 
   /* ---------- geração de notas ---------- */
-  function rate(d){var p=stats.per[perKey(d)];return (p&&p.n>=2)?p.w/p.n:0;}
+  /* Prioridade de cada nota no treino.
+     1. Avaliação inicial: toda nota da extensão aparece pelo menos duas vezes antes do resto.
+     2. Depois, o peso cresce com os erros recentes (últimas 6 respostas) e com a demora
+        (mediana dos últimos 5 acertos comparada ao seu tempo típico). Notas fáceis continuam aparecendo. */
+  var RECENT=6, TIMES=5, FRESH_N=2;
+  function median(a){if(!a.length)return 0;var s=a.slice().sort(function(x,y){return x-y;}),m=s.length>>1;return s.length%2?s[m]:(s[m-1]+s[m])/2;}
+  function typicalMs(){
+    var all=[];
+    pool().forEach(function(n){var p=stats.per[perKey(n)];if(p&&p.t)all=all.concat(p.t);});
+    return all.length>=5?median(all):0;
+  }
+  function noteInfo(n,ref){
+    var p=stats.per[perKey(n)];
+    if(!p||p.n<FRESH_N) return {fresh:true,weight:6};
+    var r=p.r&&p.r.length?p.r:null;
+    var errs=r?r.filter(function(x){return x===1;}).length:p.w, tot=r?r.length:p.n, err=tot?errs/tot:0;
+    var med=p.t&&p.t.length?median(p.t):0;
+    var slow=(med&&ref)?clamp(med/ref-1,0,2):0;
+    return {fresh:false,errs:errs,tot:tot,err:err,med:med,slow:slow,weight:1+4*err+1.5*slow};
+  }
+  function coverage(){
+    var l=pool(), seen=l.filter(function(n){var p=stats.per[perKey(n)];return p&&p.n>=FRESH_N;}).length;
+    return {seen:seen,total:l.length,done:seen>=l.length};
+  }
   function weighted(list,weights){
     var tot=0,i;for(i=0;i<weights.length;i++)tot+=weights[i];
     var r=Math.random()*tot;for(i=0;i<list.length;i++){r-=weights[i];if(r<=0)return list[i];}
     return list[list.length-1];
   }
-  function pickDrill(prev){
-    var set=preset().s.map(function(s){return BASE+s;});
-    return weighted(set,set.map(function(d){return d===prev?0:1+2.5*rate(d);}));
+  function pickDrill(prev,line){
+    var set=pool(), ref=typicalMs();
+    return weighted(set,set.map(function(n){
+      if(prev&&n.d===prev.d&&n.st===prev.st) return 0;
+      var w=noteInfo(n,ref).weight;
+      // Cada repetição na mesma pauta corta o peso pela metade, para espaçar as repetições.
+      line.forEach(function(m){if(m.d===n.d&&m.st===n.st)w*=0.5;});
+      return w;
+    }));
   }
-  function pickMelodic(prev){
-    var set=preset().s.map(function(s){return BASE+s;});
-    if(prev==null) return set[Math.floor(Math.random()*set.length)];
-    return weighted(set,set.map(function(d){var k=Math.abs(d-prev);return k===0?0.35:k<=2?3:k<=4?2:0.7;}));
+  // Escolhe a próxima nota de uma melodia, preferindo passos curtos; boost(d) reforça algumas notas.
+  function pickMelodic(set,prev,boost){
+    return weighted(set,set.map(function(d){
+      var w=1;
+      if(prev!=null){var k=Math.abs(d-prev);w=k===0?0.35:k<=2?3:k<=4?2:0.7;}
+      return boost?w*boost(d):w;
+    }));
   }
 
   /* ---------- treino ---------- */
   var drillHost=document.getElementById("drill-host");
-  var drill={notes:[],status:[],idx:0,t0:0,line:0,busy:false,timer:0};
+  var drill={notes:[],status:[],idx:0,t0:0,line:0,busy:false,timer:0,interrupted:false};
+  function startClock(){drill.t0=performance.now();drill.interrupted=false;}
+  // Se a página some da tela ou perde o foco durante a pergunta, o tempo dessa resposta não conta.
+  function markPause(){drill.interrupted=true;}
+  document.addEventListener("visibilitychange",function(){if(document.hidden)markPause();});
+  window.addEventListener("blur",markPause);
   var feedbackEl=document.getElementById("feedback");
 
-  function drillGeom(cw){var sp=cw<520?12:16;return {sp:sp,start:4.3*sp,tail:1.7*sp};}
+  function drillGeom(cw){var sp=cw<520?12:16, bo=isGrand()?(BRACE_W+0.35)*sp:0;return {sp:sp,start:bo+4.3*sp,tail:1.7*sp};}
   function newDrillLine(){
     clearTimeout(drill.timer);
     var cw=drillHost.clientWidth||640, g=drillGeom(cw);
     var n=clamp(Math.floor((cw-g.start-g.tail)/(4*g.sp)),4,10);
     var notes=[],prev=null;
-    for(var i=0;i<n;i++){prev=pickDrill(prev);notes.push(prev);}
+    for(var i=0;i<n;i++){prev=pickDrill(prev,notes);notes.push(prev);}
     drill.notes=notes;drill.status=notes.map(function(){return null;});drill.idx=0;drill.line++;drill.busy=false;
-    drill.t0=performance.now();
+    startClock();
     setFeedback("Qual é a nota destacada? Responda pelos botões ou pelo teclado.","");
     renderDrill();
   }
@@ -430,13 +675,16 @@ h2{font-family:var(--font-display);font-weight:600;font-size:22px;line-height:1.
     var cw=drillHost.clientWidth; if(!cw) return;
     var g=drillGeom(cw), sp=g.sp, n=drill.notes.length;
     var W=Math.max(cw,g.start+g.tail+n*3*sp), slot=(W-g.start-g.tail)/n;
-    var items=drill.notes.map(function(d,i){
+    var items=drill.notes.map(function(nt,i){
       var st=drill.status[i], cur=(i===drill.idx);
-      return {x:g.start+slot*(i+0.5),s:d-BASE,cls:st||(cur?"cur":""),label:st?nameOf(d):(cur?"?":""),lcls:st||"cur",lsize:0.95*sp};
+      return {x:g.start+slot*(i+0.5),d:nt.d,st:nt.st,dur:1,cls:st||(cur?"cur":""),label:st?nameOf(nt.d):(cur?"?":""),lcls:st||"cur",lsize:0.95*sp};
     });
     var band=drill.idx<n?{x:g.start+slot*drill.idx+0.12*sp,w:slot-0.24*sp}:null;
-    drillHost.innerHTML=staffSVG({W:W,sp:sp,endX:W-1,final:true,items:items,band:band,bottom:5.4,aria:"Pauta de treino com "+n+" notas"+(drill.idx<n?", nota "+(drill.idx+1)+" destacada":"")});
-    document.getElementById("progress").textContent="Pauta "+drill.line+" · nota "+Math.min(drill.idx+1,n)+" de "+n;
+    drillHost.innerHTML=systemSVG({W:W,sp:sp,staves:staves(),endX:W-1,final:true,items:items,band:band,topPad:isGrand()?5:3.6,bottom:5.4,
+      aria:"Pauta de treino com "+n+" notas"+(drill.idx<n?", nota "+(drill.idx+1)+" destacada":"")});
+    var cv=coverage();
+    document.getElementById("progress").textContent="Pauta "+drill.line+" · nota "+Math.min(drill.idx+1,n)+" de "+n
+      +(cv.done?"":" · avaliação inicial: "+cv.seen+" de "+cv.total);
   }
   function setFeedback(t,cls){feedbackEl.textContent=t;feedbackEl.className="feedback"+(cls?" "+cls:"");}
 
@@ -459,17 +707,26 @@ h2{font-family:var(--font-display);font-weight:600;font-size:22px;line-height:1.
   }
   function answer(li){
     if(drill.busy||drill.idx>=drill.notes.length) return;
-    var d=drill.notes[drill.idx], ok=((d%7)===li);
-    var dt=Math.min(performance.now()-drill.t0,15000);
-    stats.answered++; stats.timeMs+=dt;
-    var pk=perKey(d), p=stats.per[pk]||(stats.per[pk]={n:0,w:0}); p.n++;
-    if(ok){stats.correct++;stats.streak++;if(stats.streak>stats.best)stats.best=stats.streak;}
+    var nt=drill.notes[drill.idx], d=nt.d, ok=(letterOf(d)===li);
+    // Respostas muito acima do seu tempo típico contam como pausa: o acerto ou erro vale, o tempo não.
+    var dt=performance.now()-drill.t0, ref=typicalMs(), limit=clamp(4*(ref||3000),8000,20000);
+    var timed=!drill.interrupted&&dt<=limit;
+    stats.answered++;
+    if(timed){stats.timeMs+=dt;stats.timed++;}
+    var pk=perKey(nt), p=stats.per[pk]||(stats.per[pk]={n:0,w:0});
+    if(!p.r) p.r=[]; if(!p.t) p.t=[];
+    p.n++; p.r.push(ok?0:1); if(p.r.length>RECENT) p.r.shift();
+    if(ok){
+      stats.correct++;stats.streak++;if(stats.streak>stats.best)stats.best=stats.streak;
+      if(timed){p.t.push(Math.round(dt));if(p.t.length>TIMES)p.t.shift();}
+    }
     else {p.w++;stats.streak=0;}
     drill.status[drill.idx]=ok?"ok":"bad";
     play(d);
-    flashKey(li,ok?"ok":"bad"); if(!ok) flashKey(d%7,"ok");
-    var msg=ok?"Certo: "+nameOf(d)+", "+posName(d)+"."
-              :"Era "+nameOf(d)+", "+posName(d)+". Você marcou "+letterName(li)+".";
+    flashKey(li,ok?"ok":"bad"); if(!ok) flashKey(letterOf(d),"ok");
+    var fg=fingerOf(nt), fgTxt=fg?" "+(nt.st==="sol"?"Mão direita":"Mão esquerda")+", dedo "+fg+".":"";
+    var msg=ok?(timed?"Certo em "+fmt1(dt/1000)+" s: ":"Certo: ")+nameOf(d)+", "+posName(d,nt.st)+"."+fgTxt+(timed?"":" Tempo não contado porque houve uma pausa.")
+              :"Era "+nameOf(d)+", "+posName(d,nt.st)+"."+fgTxt+" Você marcou "+letterName(li)+".";
     drill.idx++;
     saveStats(); renderStats(); renderWeak();
     if(drill.idx>=drill.notes.length){
@@ -480,7 +737,7 @@ h2{font-family:var(--font-display);font-weight:600;font-size:22px;line-height:1.
       drill.timer=setTimeout(newDrillLine,1600);
     } else {
       setFeedback(msg,ok?"ok":"bad");
-      drill.t0=performance.now();
+      startClock();
       renderDrill();
     }
   }
@@ -503,23 +760,32 @@ h2{font-family:var(--font-display);font-weight:600;font-size:22px;line-height:1.
       ["Respostas",a],
       ["Acertos",stats.correct],
       ["Precisão",a?Math.round(stats.correct/a*100)+"%":"—"],
-      ["Tempo médio",a?fmt1(stats.timeMs/a/1000)+" s":"—"],
+      ["Tempo médio",stats.timed?fmt1(stats.timeMs/stats.timed/1000)+" s":"—"],
       ["Sequência",stats.streak],
       ["Melhor sequência",stats.best]
     ];
     document.getElementById("figs").innerHTML=rows.map(function(r){return "<div><dt>"+r[0]+"</dt><dd>"+r[1]+"</dd></div>";}).join("");
   }
   function renderWeak(){
-    var pre=settings.clef+":";
-    document.getElementById("weak-note").textContent="Na clave de "+CLEFS[settings.clef].name+". Elas passam a aparecer com mais frequência no treino.";
-    var list=Object.keys(stats.per).filter(function(k){return k.indexOf(pre)===0;})
-      .map(function(k){var p=stats.per[k];return {d:+k.slice(pre.length),n:p.n,w:p.w};})
-      .filter(function(x){return x.n>=3&&x.w>0;})
-      .sort(function(a,b){return (b.w/b.n-a.w/a.n)||(b.w-a.w);}).slice(0,5);
-    var el=document.getElementById("weak-list");
-    if(!list.length){el.innerHTML='<li class="empty">Nenhuma nota com erros repetidos ainda. Depois de algumas pautas, as mais difíceis para você aparecem aqui.</li>';return;}
+    var cv=coverage(), ref=typicalMs(), noteEl=document.getElementById("weak-note"), el=document.getElementById("weak-list");
+    if(!cv.done){
+      noteEl.textContent="Avaliação inicial: "+cv.seen+" de "+cv.total+" notas desta extensão já foram respondidas duas vezes. Até completar, as que faltam aparecem primeiro.";
+    } else {
+      noteEl.textContent="Todas as "+cv.total+" notas desta extensão foram avaliadas"+(ref?". Seu tempo típico é de "+fmt1(ref/1000)+" s por nota":"")
+        +". As que você erra ou demora mais aparecem com mais frequência; as outras continuam aparecendo para não esquecer.";
+    }
+    var list=pool().map(function(n){var i=noteInfo(n,ref);i.d=n.d;i.st=n.st;return i;})
+      .filter(function(x){return !x.fresh&&(x.errs>0||x.slow>=0.3);})
+      .sort(function(a,b){return b.weight-a.weight;}).slice(0,5);
+    if(!list.length){
+      el.innerHTML='<li class="empty">'+(cv.done?"Nenhuma nota se destaca agora: você está acertando todas num tempo parecido.":"Termine a avaliação inicial para ver aqui as notas que pedem mais treino.")+'</li>';
+      return;
+    }
     el.innerHTML=list.map(function(x){
-      return '<li><span class="wn">'+nameOf(x.d)+'</span><span class="wp">'+posName(x.d)+'</span><span class="wr">'+Math.round(x.w/x.n*100)+'% de erro <span style="color:var(--muted);font-weight:400">('+x.w+' de '+x.n+')</span></span></li>';
+      var parts=[];
+      if(x.errs>0) parts.push('<b>'+x.errs+' de '+x.tot+' erradas</b>');
+      if(x.med) parts.push(x.slow>=0.3?'<i>'+fmt1(x.med/1000)+' s</i>':fmt1(x.med/1000)+' s');
+      return '<li><span class="wn">'+nameOf(x.d)+'</span><span class="wp">'+posName(x.d,x.st)+'</span><span class="wr">'+parts.join(" · ")+'</span></li>';
     }).join("");
   }
   var resetEl=document.getElementById("reset");
@@ -536,40 +802,106 @@ h2{font-family:var(--font-display);font-weight:600;font-size:22px;line-height:1.
   });
 
   /* ---------- folha de leitura ---------- */
+  // Cada compasso guarda, por clave, eventos {b: tempo inicial 0-3, dur: 1/2/4, d: nota} ou pausas {b, dur, rest:true}.
   var sheetHost=document.getElementById("sheet-host");
-  var sheetNotes=[];
+  var sheet={staves:["sol"],measures:[]};
+  var CHORDS={I:[0,2,4],IV:[3,5,0],V:[4,6,1]};   // Dó-Mi-Sol, Fá-Lá-Dó, Sol-Si-Ré
+  function ev(b,dur,d){return {b:b,dur:dur,d:d};}
+  function rest(b,dur){return {b:b,dur:dur,rest:true};}
+
+  function genSingle(st,M){
+    var ds=staffDs(st), prev=null, out=[];
+    for(var m=0;m<M;m++){
+      var e=[];
+      for(var k=0;k<4;k++){prev=pickMelodic(ds,prev);e.push(ev(k,1,prev));}
+      var o={}; o[st]=e; out.push(o);
+    }
+    return out;
+  }
+  // Mãos alternadas: em cada compasso só uma mão toca de cada vez; a outra descansa.
+  function genAlternating(M){
+    var ds={sol:staffDs("sol"),fa:staffDs("fa")}, pr={sol:null,fa:null}, out=[], last="", pats=["R","L","RL","LR"];
+    function q(st,b){pr[st]=pickMelodic(ds[st],pr[st]);return ev(b,1,pr[st]);}
+    for(var m=0;m<M;m++){
+      var pat=weighted(pats,[3,3,2,2].map(function(w,i){return pats[i]===last?w*0.4:w;})), o;
+      last=pat;
+      if(pat==="R") o={sol:[q("sol",0),q("sol",1),q("sol",2),q("sol",3)],fa:[rest(0,4)]};
+      else if(pat==="L") o={fa:[q("fa",0),q("fa",1),q("fa",2),q("fa",3)],sol:[rest(0,4)]};
+      else if(pat==="RL") o={sol:[q("sol",0),q("sol",1),rest(2,2)],fa:[rest(0,2),q("fa",2),q("fa",3)]};
+      else o={fa:[q("fa",0),q("fa",1),rest(2,2)],sol:[rest(0,2),q("sol",2),q("sol",3)]};
+      out.push(o);
+    }
+    return out;
+  }
+  // Mãos juntas: a direita toca semínimas; a esquerda segura notas longas do acorde do compasso, sempre abaixo da direita.
+  function genTogether(M){
+    var rh=staffDs("sol"), lh=staffDs("fa"), prR=null, prL=null, out=[], prevC="I";
+    for(var m=0;m<M;m++){
+      var c=(m===0||m===M-1)?"I":(m===M-2)?"V":weighted(["I","IV","V"],[prevC==="I"?1:2.2,prevC==="IV"?0.6:1.6,prevC==="V"?0.6:1.6]);
+      prevC=c;
+      var ct=CHORDS[c], inChord=function(d){return ct.indexOf(letterOf(d))>=0;};
+      var boost=function(d){return inChord(d)?3:1;};
+      var sol=[], minR=Infinity;
+      for(var k=0;k<4;k++){prR=pickMelodic(rh,prR,k%2===0?boost:null);sol.push(ev(k,1,prR));minR=Math.min(minR,prR);}
+      var below=lh.filter(function(d){return d<minR;}); if(!below.length) below=lh;
+      var tones=below.filter(inChord); if(!tones.length) tones=below;
+      var roots=tones.filter(function(d){return letterOf(d)===ct[0];}); if(!roots.length) roots=tones;
+      var near=function(set,ref){return weighted(set,set.map(function(d){return ref==null?1:1/(1+Math.abs(d-ref));}));};
+      var fa;
+      if(Math.random()<0.6||tones.length<2){prL=near(roots,prL);fa=[ev(0,4,prL)];}
+      else {
+        var a=near(roots,prL), others=tones.filter(function(d){return d!==a;}), b=others.length?near(others,a):a;
+        prL=b; fa=[ev(0,2,a),ev(2,2,b)];
+      }
+      out.push({sol:sol,fa:fa});
+    }
+    return out;
+  }
   function newSheet(){
-    sheetNotes=[];var prev=null;
-    for(var i=0;i<SHEET_MEASURES*4;i++){prev=pickMelodic(prev);sheetNotes.push(prev);}
+    var ms;
+    if(!isGrand()) ms=genSingle(settings.clef,24);
+    else ms=settings.hands==="juntas"?genTogether(16):genAlternating(16);
+    sheet={staves:staves(),measures:ms};
     renderSheet();
   }
   function renderSheet(){
     var cw=sheetHost.clientWidth; if(!cw) return;
-    var sp=cw<520?9:10;
-    var clefEnd=0.45*sp+2.68*sp, tsX=clefEnd+0.9*sp;
-    var firstStart=tsX+1.8*sp+1.1*sp, otherStart=clefEnd+1.3*sp;
-    var mMin=4*3.1*sp+1.6*sp;
+    var sts=sheet.staves, grand=sts.length>1, sp=cw<520?9:10, bo=grand?(BRACE_W+0.35)*sp:0;
+    var clefEnd=bo+0.45*sp+2.75*sp, tsX=clefEnd+0.9*sp;
+    var firstStart=tsX+1.8*sp+1.1*sp, otherStart=clefEnd+1.3*sp, mMin=4*3.1*sp+1.6*sp, M=sheet.measures.length;
     var m=clamp(Math.floor((cw-1-firstStart)/mMin),1,4);
-    while(SHEET_MEASURES%m) m--;
-    var systems=SHEET_MEASURES/m, out=[], show=settings.showNames;
+    while(M%m) m--;
+    var systems=M/m, out=[], show=settings.showNames, ls=Math.max(11,1.15*sp);
     for(var sy=0;sy<systems;sy++){
       var start=sy===0?firstStart:otherStart, endX=cw-1, mW=(endX-start)/m, inner=mW-1.6*sp;
       var items=[], bars=[];
       for(var j=0;j<m;j++){
         if(j>0) bars.push(start+j*mW);
-        for(var k=0;k<4;k++){
-          var d=sheetNotes[((sy*m)+j)*4+k];
-          items.push({x:start+j*mW+1.0*sp+inner*(k+0.5)/4,s:d-BASE,d:d,hit:inner/4,label:show?nameOf(d):"",lsize:Math.max(11,1.15*sp)});
-        }
+        var mx=start+j*mW, meas=sheet.measures[sy*m+j];
+        sts.forEach(function(st){
+          (meas[st]||[]).forEach(function(e){
+            var x=(e.rest&&e.dur===4)?mx+1.0*sp+inner/2:mx+1.0*sp+inner*(e.b+0.5)/4;
+            items.push(e.rest?{x:x,st:st,rest:true,dur:e.dur}:{x:x,st:st,d:e.d,dur:e.dur,hit:inner/4,label:show?nameOf(e.d):"",lsize:ls});
+          });
+        });
       }
-      out.push(staffSVG({W:cw,sp:sp,endX:endX,ts:sy===0,tsX:tsX,mnum:sy>0?(sy*m+1):null,bars:bars,final:sy===systems-1,endBar:sy<systems-1,items:items,bottom:show?5.2:3.1,
+      out.push(systemSVG({W:cw,sp:sp,staves:sts,endX:endX,ts:sy===0,tsX:tsX,mnum:sy>0?(sy*m+1):null,bars:bars,
+        final:sy===systems-1,endBar:sy<systems-1,items:items,topPad:(grand&&show)?5:3.6,bottom:show?5.2:3.1,
         aria:"Linha "+(sy+1)+" da folha, compassos "+(sy*m+1)+" a "+(sy*m+m)}));
     }
+    // Com nomes nas duas pautas, separa os sistemas para os nomes de baixo não se confundirem com os do sistema seguinte.
+    sheetHost.style.gap=(grand&&show)?Math.round(1.6*sp)+"px":"0px";
     sheetHost.innerHTML=out.join("");
   }
   document.getElementById("btn-newsheet").addEventListener("click",newSheet);
   var swNames=document.getElementById("sw-names");
   swNames.addEventListener("click",function(){settings.showNames=!settings.showNames;saveSettings();syncSwitches();renderSheet();});
+  document.querySelectorAll("[data-hands]").forEach(function(b){
+    b.addEventListener("click",function(){
+      if(b.dataset.hands===settings.hands) return;
+      settings.hands=b.dataset.hands; saveSettings(); syncSwitches(); newSheet();
+    });
+  });
 
   function hearFrom(e){
     var g=e.target.closest(".nt[data-d]"); if(!g) return;
@@ -582,24 +914,37 @@ h2{font-family:var(--font-display);font-weight:600;font-size:22px;line-height:1.
   var mapHost=document.getElementById("map-host");
   mapHost.addEventListener("click",hearFrom);
   function renderMap(){
-    var p=preset(), sp=10, start=4.3*sp, slot=3.6*sp, tail=1.7*sp, n=p.s.length, W=start+n*slot+tail;
-    var items=p.s.map(function(s,i){return {x:start+slot*(i+0.5),s:s,d:BASE+s,hit:slot,label:nameS(s),lsize:12};});
-    mapHost.innerHTML=staffSVG({W:W,sp:sp,endX:W-1,final:true,items:items,bottom:5.4,fixed:true,aria:"Mapa das notas de "+nameS(p.s[0])+" a "+nameS(p.s[n-1])});
-    document.getElementById("map-summary").textContent="Mapa das notas: "+p.label.toLowerCase();
+    var p=curPreset(), grand=isGrand(), fing=!!p.fingers&&grand;
+    var list=pool().sort(function(a,b){return a.d-b.d||(a.st==="fa"?-1:1);});
+    var sp=10, bo=grand?(BRACE_W+0.35)*sp:0, start=bo+4.3*sp, slot=3.6*sp, tail=1.7*sp, n=list.length, W=start+n*slot+tail;
+    var cnt={sol:0,fa:0};
+    var items=list.map(function(nt,i){
+      var it={x:start+slot*(i+0.5),d:nt.d,st:nt.st,dur:1,hit:slot,label:nameOf(nt.d),lsize:12};
+      if(fing) it.finger=p.fingers[nt.st][cnt[nt.st]++];
+      return it;
+    });
+    mapHost.innerHTML=systemSVG({W:W,sp:sp,staves:staves(),endX:W-1,final:true,items:items,topPad:grand?(fing?6.8:5):3.6,bottom:fing?6.8:5.4,fixed:true,
+      aria:"Mapa das notas de "+nameOf(list[0].d)+" a "+nameOf(list[n-1].d)});
+    document.getElementById("map-summary").textContent="Mapa das notas: "+p.label.charAt(0).toLowerCase()+p.label.slice(1);
+    document.getElementById("map-note").textContent="Todas as notas da extensão escolhida, da mais grave à mais aguda."
+      +(fing?" Os números em azul são os dedos: 1 é o polegar e 5 o mínimo, nas duas mãos.":"")+" Toque numa nota para ouvir.";
   }
 
   /* ---------- ajustes ---------- */
   var presetsEl=document.getElementById("presets");
   function renderPresets(){
-    presetsEl.innerHTML=PRESETS.map(function(p){
-      return '<button class="chip" role="radio" id="pr-'+p.id+'" data-p="'+p.id+'" aria-checked="'+(p.id===settings.preset)+'">'+p.label+'</button>';
+    var cur=curPreset();
+    presetsEl.innerHTML=curPresets().map(function(p){
+      return '<button class="chip" role="radio" id="pr-'+p.id+'" data-p="'+p.id+'" aria-checked="'+(p===cur)+'">'+p.label+'</button>';
     }).join("");
-    document.getElementById("preset-desc").textContent=preset().desc(nameS);
+    document.getElementById("preset-desc").textContent=isGrand()?cur.desc(nameOf):cur.desc(function(s){return nameOf(CLEFS[settings.clef].base+s);});
   }
   presetsEl.addEventListener("click",function(e){
-    var b=e.target.closest(".chip"); if(!b||b.dataset.p===settings.preset) return;
-    settings.preset=b.dataset.p; saveSettings();
-    renderPresets(); renderMap(); newDrillLine(); newSheet();
+    var b=e.target.closest(".chip"); if(!b) return;
+    var key=isGrand()?"gpreset":"preset";
+    if(b.dataset.p===settings[key]) return;
+    settings[key]=b.dataset.p; saveSettings();
+    renderPresets(); renderMap(); renderWeak(); newDrillLine(); newSheet();
   });
   document.querySelectorAll("[data-naming]").forEach(function(b){
     b.addEventListener("click",function(){
@@ -610,7 +955,7 @@ h2{font-family:var(--font-display);font-weight:600;font-size:22px;line-height:1.
   document.querySelectorAll("[data-clef]").forEach(function(b){
     b.addEventListener("click",function(){
       if(b.dataset.clef===settings.clef) return;
-      settings.clef=b.dataset.clef; BASE=CLEFS[settings.clef].base; saveSettings(); syncSwitches();
+      settings.clef=b.dataset.clef; saveSettings(); syncSwitches();
       renderPresets(); renderMap(); renderWeak(); newDrillLine(); newSheet();
     });
   });
@@ -622,43 +967,627 @@ h2{font-family:var(--font-display);font-weight:600;font-size:22px;line-height:1.
     swNames.setAttribute("aria-checked",String(settings.showNames));
     document.querySelectorAll("[data-naming]").forEach(function(b){b.setAttribute("aria-checked",String(b.dataset.naming===settings.naming));});
     document.querySelectorAll("[data-clef]").forEach(function(b){b.setAttribute("aria-checked",String(b.dataset.clef===settings.clef));});
-    document.getElementById("h1-clef").textContent=CLEFS[settings.clef].name;
+    document.querySelectorAll("[data-hands]").forEach(function(b){b.setAttribute("aria-checked",String(b.dataset.hands===settings.hands));});
+    document.getElementById("hands-seg").hidden=!isGrand();
+    document.getElementById("h1-clef").textContent=MODE_NAMES[settings.clef];
+    document.getElementById("sheet-intro").textContent=isGrand()
+      ? "Pauta de cima: mão direita. Pauta de baixo: mão esquerda. Toque num pulso constante, quatro tempos por compasso, sem parar para corrigir, e depois confira com “Mostrar nomes”. Na tela, toque numa nota para ouvir."
+      : "Leia as notas em voz alta num pulso constante, quatro por compasso, sem parar para corrigir. Depois confira com “Mostrar nomes”. Toque numa nota para ouvir.";
   }
+
+  /* ---------- ritmo ---------- */
+  // Durações em semicolcheias: semibreve 16, mínima 8, semínima 4 (um tempo), colcheia 2, semicolcheia 1.
+  var RFIGS=[
+    {id:"semibreve",label:"Semibreve"},
+    {id:"minpont",label:"Mínima pontuada"},
+    {id:"minima",label:"Mínima"},
+    {id:"pontcol",label:"Semínima pontuada e colcheia"},
+    {id:"seminima",label:"Semínima",locked:true},
+    {id:"colcheias",label:"Colcheias"},
+    {id:"semicol",label:"Semicolcheias"},
+    {id:"pausas",label:"Pausas"}
+  ];
+  var LV1=["seminima","minima","semibreve"], LV2=LV1.concat(["minpont","pausas"]), LV3=LV2.concat(["colcheias"]), LV4=LV3.concat(["pontcol"]), LV5=LV4.concat(["semicol"]);
+  var RLEVELS=[
+    {figs:LV1,desc:"Nível 1: semínimas, mínimas e semibreves. Um toque no começo de cada nota, contando os tempos que ela dura."},
+    {figs:LV2,desc:"Nível 2: entram a mínima pontuada, que dura 3 tempos, e as pausas, que são tempos sem tocar."},
+    {figs:LV3,desc:"Nível 3: entram as colcheias, dois toques dentro de um tempo."},
+    {figs:LV4,desc:"Nível 4: entra a semínima pontuada seguida de colcheia, um ritmo que ocupa dois tempos."},
+    {figs:LV5,desc:"Nível 5: entram as semicolcheias, quatro toques dentro de um tempo."}
+  ];
+  // Células de ritmo. ev = [duração, 1 se pausa]; beats = tempos ocupados; even = começa em tempo ímpar só no 3/4; start0 = só no 1º tempo.
+  var CELLS=[
+    {beats:1,ev:[[4]],need:[],w:3},
+    {beats:1,ev:[[4,1]],need:["pausas"],w:0.9},
+    {beats:1,ev:[[2],[2]],need:["colcheias"],w:2.2},
+    {beats:1,ev:[[2,1],[2]],need:["colcheias","pausas"],w:0.7},
+    {beats:1,ev:[[2],[2,1]],need:["colcheias","pausas"],w:0.4},
+    {beats:1,ev:[[1],[1],[1],[1]],need:["semicol"],w:1},
+    {beats:1,ev:[[2],[1],[1]],need:["semicol","colcheias"],w:0.8},
+    {beats:1,ev:[[1],[1],[2]],need:["semicol","colcheias"],w:0.8},
+    {beats:2,ev:[[8]],need:["minima"],w:2,even:true},
+    {beats:2,ev:[[8,1]],need:["minima","pausas"],w:0.4,even:true},
+    {beats:2,ev:[[6],[2]],need:["pontcol"],w:1.3,even:true},
+    {beats:3,ev:[[12]],need:["minpont"],w:1.2,start0:true},
+    {beats:4,ev:[[16]],need:["semibreve"],w:0.9,start0:true}
+  ];
+  CELLS.forEach(function(c){c.rest=c.ev.some(function(e){return !!e[1];});});
+  var R_COUNTS=[2,4,8,12,16];
+
+  settings.r=Object.assign({meter:4,bpm:70,figs:LV1.slice(),metro:"sempre",latency:0,calibrated:false,cursor:false,hands:"uma",measures:4,view:"pagina"},settings.r||{});
+  (function(r){
+    if([2,3,4].indexOf(r.meter)<0) r.meter=4;
+    r.bpm=clamp(Math.round(+r.bpm||70),40,160);
+    if(!Array.isArray(r.figs)) r.figs=LV1.slice();
+    r.figs=r.figs.filter(function(x){return RFIGS.some(function(fg){return fg.id===x;});});
+    if(r.figs.indexOf("seminima")<0) r.figs.push("seminima");
+    if(r.metro!=="contagem") r.metro="sempre";
+    r.latency=clamp(Math.round(+r.latency||0),-150,400);
+    r.cursor=r.cursor===true;
+    if(r.hands!=="duas") r.hands="uma";
+    r.measures=R_COUNTS.indexOf(+r.measures)>=0?+r.measures:4;
+    if(r.view!=="rolando") r.view="pagina";
+  })(settings.r);
+
+  // anchor: instante do primeiro toque, que marca o início do exercício e serve de referência para os outros.
+  var R={ex:null,state:"idle",kind:"ex",taps:[],result:null,msg:"",startPerf:0,countPerf:0,anchor:null,beatMs:0,totalMs:0,meter:4,bus:null,raf:0,L:null,wake:null};
+  var rHost=document.getElementById("r-host"), rGo=document.getElementById("r-go"), rResult=document.getElementById("r-result");
+  var rNum=document.getElementById("r-num"), rLbl=document.getElementById("r-lbl");
+  var rPads={R:document.getElementById("r-pad"),L:document.getElementById("r-pad-l")};
+  function rTwo(){return settings.r.hands==="duas";}
+
+  function rGenerate(){
+    var meter=settings.r.meter, figs=settings.r.figs, ms=[];
+    for(var m=0;m<settings.r.measures;m++){
+      var b=0, evs=[], rests=0;
+      while(b<meter){
+        var cands=CELLS.filter(function(c){
+          if(c.beats>meter-b) return false;
+          if(!c.need.every(function(x){return figs.indexOf(x)>=0;})) return false;
+          if(c.start0&&b!==0) return false;
+          if(c.even&&meter!==3&&b%2!==0) return false;
+          if(c.rest&&(rests>=1||(m===0&&b===0))) return false;   // no máximo uma pausa por compasso; nunca no começo
+          return true;
+        });
+        var c=weighted(cands,cands.map(function(x){return x.w;})), pos=b*4;
+        c.ev.forEach(function(e){evs.push({pos:pos,dur:e[0],rest:!!e[1]});pos+=e[0];});
+        if(c.rest) rests++;
+        b+=c.beats;
+      }
+      ms.push(evs);
+    }
+    R.ex={meter:meter,measures:ms};
+  }
+  // Linhas de um compasso: R = ritmo (mão direita); L = pulso da mão esquerda, uma semínima por tempo.
+  function rLines(mi){
+    var o={R:R.ex.measures[mi]};
+    if(rTwo()){o.L=[];for(var b=0;b<R.ex.meter;b++)o.L.push({pos:b*4,dur:4,rest:false});}
+    return o;
+  }
+  function rKey(h,mi,ei,pos){return h==="R"?"R"+mi+"_"+ei:"L"+(mi*R.ex.meter+pos/4);}
+
+  /* Layout. Página: compassos quebrados em linhas, espaçamento pela duração. Rolando: uma faixa só, com espaço
+     proporcional ao tempo, para a rolagem ter velocidade constante. */
+  function rLayout(cw,strip){
+    var sp=cw<520?10:12, meter=R.ex.meter, N=R.ex.measures.length, two=rTwo(), lines=two?["R","L"]:["R"];
+    var bo=two?(BRACE_W+0.35)*sp:0, head=bo+4.2*sp, lead=bo+0.8*sp, pre=1.4*sp, post=0.9*sp, umin=0.95*sp;
+    var gapL=Math.round(7.5*sp), sysH=Math.round((two?17.4:9.6)*sp);
+    var slots=[];
+    for(var mi=0;mi<N;mi++){
+      var ls=rLines(mi), set={};
+      lines.forEach(function(h){ls[h].forEach(function(e){set[e.pos]=1;});});
+      var ps=Object.keys(set).map(Number).sort(function(a,b){return a-b;});
+      slots.push(ps.map(function(p,k){return {pos:p,gap:(k<ps.length-1?ps[k+1]:meter*4)-p};}));
+    }
+    function wOf(s){return 1.5+1.4*Math.sqrt(s.gap);}
+    var mw=slots.map(function(ss){return ss.reduce(function(a,s){return a+wOf(s);},0);});
+    var ev=[], anchors=[], bars=[], sys=[], L={sp:sp,two:two,meter:meter,strip:strip,bo:bo};
+    function addEvents(mi,s,xOf){
+      var ls=rLines(mi);
+      lines.forEach(function(h){ls[h].forEach(function(e,ei){
+        ev.push({h:h,key:rKey(h,mi,ei,e.pos),s:s,m:mi,cx:xOf(e.pos),pos:e.pos,dur:e.dur,rest:e.rest});
+      });});
+    }
+    if(strip){
+      var minGap=16; slots.forEach(function(ss){ss.forEach(function(s){minGap=Math.min(minGap,s.gap);});});
+      var pxb=sp*Math.max(6,2.7*4/minGap), x0=head+1.2*sp, y1=Math.round(5*sp)+0.5;
+      sys.push({y1:y1,y2:two?y1+gapL:null,first:true,last:true});
+      for(mi=0;mi<N;mi++){
+        (function(mi){addEvents(mi,0,function(pos){return x0+(mi*meter*4+pos)/4*pxb;});})(mi);
+        if(mi>0) bars.push({x:x0+mi*meter*pxb-1.0*sp,s:0});
+      }
+      anchors=[{t:0,x:x0,s:0},{t:N*meter*4,x:x0+N*meter*pxb,s:0}];
+      L.W=Math.ceil(x0+N*meter*pxb+0.6*sp); L.pxb=pxb; L.x0=x0; L.H=sysH; L.hitX=Math.round(Math.max(3*sp,0.3*cw));
+    } else {
+      var per=1;
+      [4,3,2,1].some(function(k){
+        if(N%k) return false;
+        for(var s=0;s<N/k;s++){var need=(s===0?head:lead)+2;for(var j=0;j<k;j++)need+=pre+post+mw[s*k+j]*umin;if(need>cw)return false;}
+        per=k;return true;
+      });
+      for(var s=0;s<N/per;s++){
+        var y=Math.round(s*sysH+5*sp)+0.5, x=(s===0?head:lead)+1, end=cw-1, tw=0, j;
+        for(j=0;j<per;j++) tw+=mw[s*per+j];
+        var u=(end-x-per*(pre+post))/tw;
+        sys.push({y1:y,y2:two?y+gapL:null,first:s===0,last:s===N/per-1});
+        for(j=0;j<per;j++){
+          var m2=s*per+j, slot=x+pre, posX={};
+          slots[m2].forEach(function(sl){var cx=slot+0.6*sp;posX[sl.pos]=cx;anchors.push({t:m2*meter*4+sl.pos,x:cx,s:s});slot+=wOf(sl)*u;});
+          addEvents(m2,s,function(pos){return posX[pos];});
+          x=slot+post;
+          anchors.push({t:(m2+1)*meter*4,x:x,s:s});
+          if(j<per-1) bars.push({x:x,s:s});
+        }
+      }
+      L.W=cw; L.H=(N/per)*sysH;
+    }
+    L.sys=sys; L.ev=ev; L.anchors=anchors; L.bars=bars;
+    return L;
+  }
+  // Posição na pauta de um instante (em semicolcheias desde o início do exercício).
+  function rPos(L,t){
+    var a=L.anchors, k=0;
+    for(var i=0;i<a.length;i++){if(a[i].t<=t)k=i;else break;}
+    var A=a[k], B=a[k+1];
+    if(!B||B.s!==A.s||B.t===A.t) return {x:A.x,s:A.s};
+    return {x:A.x+(B.x-A.x)*(t-A.t)/(B.t-A.t),s:A.s};
+  }
+  function rDraw(){
+    var cw=rHost.clientWidth; if(!cw||!R.ex) return;
+    var strip=settings.r.view==="rolando"&&!R.result;
+    var L=rLayout(cw,strip); R.L=L;
+    var sp=L.sp, p=[], res=R.result, W=L.W, lw=Math.max(1,f(0.1*sp)), bw=Math.max(1,f(0.13*sp)), sw=Math.max(1,f(0.12*sp)), hw=HEAD_W*sp;
+    var xs=1+L.bo;
+    function yOf(S,h){return h==="L"?S.y2:S.y1;}
+    L.sys.forEach(function(S){
+      var top=S.y1-2*sp, bot=(L.two?S.y2:S.y1)+2*sp;
+      [S.y1].concat(L.two?[S.y2]:[]).forEach(function(y){
+        p.push('<line class="sl" x1="'+f(xs)+'" x2="'+(W-1)+'" y1="'+y+'" y2="'+y+'" stroke-width="'+lw+'"/>');
+        if(S.first){
+          p.push('<use href="#g-ts'+L.meter+'" class="gl" transform="translate('+f(xs+0.9*sp)+' '+f(y-sp)+') scale('+sp+')"/>');
+          p.push('<use href="#g-ts4" class="gl" transform="translate('+f(xs+0.9*sp)+' '+f(y+sp)+') scale('+sp+')"/>');
+        }
+      });
+      if(L.two){
+        p.push('<use href="#g-brace" class="gl" transform="translate(1 '+f(top)+') scale('+f(BRACE_W*sp)+' '+f(bot-top)+')"/>');
+        p.push('<line class="bar" x1="'+f(xs+bw/2)+'" x2="'+f(xs+bw/2)+'" y1="'+f(top)+'" y2="'+f(bot)+'" stroke-width="'+bw+'"/>');
+        if(S.first){
+          p.push('<text class="hand-lbl" x="'+f(xs+0.9*sp)+'" y="'+f(S.y1-2.6*sp)+'" font-size="'+f(Math.max(11,1.15*sp))+'">m.d.</text>');
+          p.push('<text class="hand-lbl" x="'+f(xs+0.9*sp)+'" y="'+f(S.y2-2.6*sp)+'" font-size="'+f(Math.max(11,1.15*sp))+'">m.e.</text>');
+        }
+      }
+      if(S.last){
+        var tw=0.5*sp, tx=W-1-tw, thin=tx-0.4*sp-bw/2;
+        p.push('<rect class="thick" x="'+f(tx)+'" y="'+f(top)+'" width="'+f(tw)+'" height="'+f(bot-top)+'"/>');
+        p.push('<line class="bar" x1="'+f(thin)+'" x2="'+f(thin)+'" y1="'+f(top)+'" y2="'+f(bot)+'" stroke-width="'+bw+'"/>');
+      } else {
+        p.push('<line class="bar" x1="'+f(W-1-bw/2)+'" x2="'+f(W-1-bw/2)+'" y1="'+f(top)+'" y2="'+f(bot)+'" stroke-width="'+bw+'"/>');
+      }
+    });
+    L.bars.forEach(function(b){var S=L.sys[b.s];p.push('<line class="bar" x1="'+f(b.x)+'" x2="'+f(b.x)+'" y1="'+f(S.y1-2*sp)+'" y2="'+f((L.two?S.y2:S.y1)+2*sp)+'" stroke-width="'+bw+'"/>');});
+    // Colcheias e semicolcheias do mesmo tempo ganham barra; as sozinhas ganham bandeirola.
+    var groups=[];
+    ["R","L"].forEach(function(h){
+      var cur=[];
+      function flush(){if(cur.length>=2)groups.push(cur);else if(cur.length===1)cur[0].flag=true;cur=[];}
+      L.ev.forEach(function(e){
+        if(e.h!==h) return;
+        if(e.rest||e.dur>=4){flush();return;}
+        var pv=cur[cur.length-1];
+        if(pv&&(pv.m!==e.m||Math.floor(pv.pos/4)!==Math.floor(e.pos/4)||pv.pos+pv.dur!==e.pos)) flush();
+        cur.push(e);
+      });
+      flush();
+    });
+    L.ev.forEach(function(e){
+      var y=yOf(L.sys[e.s],e.h);
+      if(e.rest){
+        var g=e.dur===16?["#g-restw",1.128]:e.dur===8?["#g-resth",1.128]:e.dur===4?["#g-restq",1.081]:e.dur===2?["#g-rest8",0.989]:["#g-rest16",1.281];
+        p.push('<use href="'+g[0]+'" class="gl" transform="translate('+f(e.cx-g[1]*sp/2)+' '+f(y)+') scale('+sp+')"/>');
+        return;
+      }
+      var whole=e.dur>=16, w=whole?WHOLE_W*sp:hw, xl=e.cx-w/2, sx=e.cx+hw/2-sw/2;
+      var q='<g class="nt '+(res?(res.cls[e.key]||""):"")+'">';
+      if(!whole) q+='<line class="stem" x1="'+f(sx)+'" x2="'+f(sx)+'" y1="'+f(y-0.168*sp)+'" y2="'+f(y-3.5*sp)+'" stroke-width="'+sw+'"/>';
+      q+='<use href="'+(whole?"#g-headw":e.dur>=8?"#g-headh":"#g-head")+'" class="head" transform="translate('+f(xl)+' '+f(y)+') scale('+sp+')"/>';
+      if(e.dur===12||e.dur===6||e.dur===3) q+='<use href="#g-dot" class="head" transform="translate('+f(xl+w+0.3*sp)+' '+f(y-0.5*sp)+') scale('+sp+')"/>';
+      if(e.flag) q+='<use href="'+(e.dur===1?"#g-flag16":"#g-flag8")+'" class="head" transform="translate('+f(sx-sw/2)+' '+f(y-3.5*sp)+') scale('+sp+')"/>';
+      p.push(q+'</g>');
+    });
+    groups.forEach(function(g){
+      var y=yOf(L.sys[g[0].s],g[0].h), top=y-3.5*sp, x1=g[0].cx+hw/2-sw, x2=g[g.length-1].cx+hw/2;
+      p.push('<rect class="beam" x="'+f(x1)+'" y="'+f(top)+'" width="'+f(x2-x1)+'" height="'+f(0.5*sp)+'"/>');
+      for(var k=0;k<g.length-1;k++) if(g[k].dur===1&&g[k+1].dur===1){
+        var a=g[k].cx+hw/2-sw, b=g[k+1].cx+hw/2;
+        p.push('<rect class="beam" x="'+f(a)+'" y="'+f(top+0.75*sp)+'" width="'+f(b-a)+'" height="'+f(0.5*sp)+'"/>');
+      }
+    });
+    if(res) Object.keys(res.hands).forEach(function(h){
+      res.hands[h].ticks.forEach(function(tk){
+        var ps=rPos(L,tk.t16), y=yOf(L.sys[ps.s],h);
+        p.push('<line class="tick '+tk.c+'" x1="'+f(ps.x)+'" x2="'+f(ps.x)+'" y1="'+f(y+2.4*sp)+'" y2="'+f(y+3.6*sp)+'"/>');
+      });
+    });
+    var aria='Exercício de ritmo em '+L.meter+' por 4, '+R.ex.measures.length+' compassos'+(L.two?', duas mãos':'');
+    if(strip){
+      rHost.innerHTML='<div class="r-strip"><div class="r-track" id="r-track"><svg width="'+W+'" height="'+L.H+'" viewBox="0 0 '+W+' '+L.H+'" role="img" aria-label="'+aria+'" xmlns="http://www.w3.org/2000/svg">'+p.join("")+'</svg></div>'+(settings.r.cursor?'<div class="r-hit" style="left:'+L.hitX+'px"></div>':'')+'</div>';
+      rScroll(0);
+    } else {
+      var S0=L.sys[0];
+      p.push('<rect id="r-cursor" class="rcur" x="0" y="0" width="'+f(Math.max(2,0.2*sp))+'" height="'+f((L.two?S0.y2-S0.y1:0)+7.6*sp)+'" rx="1" visibility="hidden"/>');
+      rHost.innerHTML='<svg class="staff" viewBox="0 0 '+W+' '+L.H+'" role="img" aria-label="'+aria+'" xmlns="http://www.w3.org/2000/svg">'+p.join("")+'</svg>';
+    }
+  }
+  // Barra de acompanhamento (opcional). Página inteira: barra que anda a partir do primeiro toque. Rolando: linha fixa onde as notas passam.
+  function rCursor(t16){
+    var c=document.getElementById("r-cursor"); if(!c||!R.L||R.L.strip) return;
+    if(t16==null){c.setAttribute("visibility","hidden");return;}
+    var L=R.L, ps=rPos(L,t16), y=L.sys[ps.s].y1, w=Math.max(2,0.2*L.sp);
+    c.setAttribute("x",f(ps.x-w/2)); c.setAttribute("y",f(y-4.6*L.sp)); c.setAttribute("visibility","visible");
+  }
+  // Rolando: a faixa anda para a esquerda e cada nota cruza a linha fixa no seu tempo.
+  function rScroll(t16){
+    var tr=document.getElementById("r-track"); if(!tr||!R.L||!R.L.strip) return;
+    tr.style.transform="translateX("+f(R.L.hitX-(R.L.x0+t16/4*R.L.pxb))+"px)";
+  }
+
+  // Converte entre o relógio de áudio (segundos) e o relógio dos toques (performance.now, em ms).
+  function rPerfAt(ctx,t){
+    try{
+      if(ctx.getOutputTimestamp){var ts=ctx.getOutputTimestamp();if(ts&&ts.performanceTime>0&&ts.contextTime>0)return ts.performanceTime+(t-ts.contextTime)*1000;}
+    }catch(e){}
+    return performance.now()+(t-ctx.currentTime)*1000+((ctx.outputLatency||ctx.baseLatency||0)*1000);
+  }
+  function rCtxAt(ctx,perf){
+    try{
+      if(ctx.getOutputTimestamp){var ts=ctx.getOutputTimestamp();if(ts&&ts.performanceTime>0&&ts.contextTime>0)return ts.contextTime+(perf-ts.performanceTime)/1000;}
+    }catch(e){}
+    return ctx.currentTime+(perf-performance.now())/1000-(ctx.outputLatency||ctx.baseLatency||0);
+  }
+  function rClick(ctx,dest,t,accent){
+    var o=ctx.createOscillator(), g=ctx.createGain();
+    o.type="sine"; o.frequency.value=accent?1760:1175;
+    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(accent?0.6:0.38,t+0.002); g.gain.exponentialRampToValueAtTime(0.0001,t+0.06);
+    o.connect(g); g.connect(dest); o.start(t); o.stop(t+0.07);
+  }
+  // Metrônomo do exercício: começa no primeiro toque. A calibração adianta os cliques para soarem junto com o seu toque.
+  function rScheduleFrom(anchor){
+    var ctx=actx; if(!ctx||!R.bus) return;
+    var lat=settings.r.calibrated?settings.r.latency:0, n=R.ex.measures.length*R.meter;
+    for(var k=1;k<n;k++){
+      var t=rCtxAt(ctx,anchor-lat+k*R.beatMs);
+      if(t>ctx.currentTime+0.005) rClick(ctx,R.bus,t,k%R.meter===0);
+    }
+  }
+  function rPadText(num,lbl){num=String(num);if(rNum.textContent!==num)rNum.textContent=num;if(rLbl.textContent!==lbl)rLbl.textContent=lbl;}
+  function rUI(){
+    var run=R.state!=="idle", two=rTwo();
+    document.getElementById("r-controls").disabled=run;
+    document.getElementById("r-new").disabled=run;
+    document.getElementById("r-calib").disabled=run;
+    rPads.L.hidden=!two;
+    rPads.R.classList.toggle("live",R.state==="run"); rPads.L.classList.toggle("live",R.state==="run");
+    document.getElementById("r-pad-r-title").textContent=two?"Mão direita":"Toque aqui";
+    document.getElementById("r-pad-r-sub").textContent=two?"ritmo · tecla J":"ou use a barra de espaço";
+    document.getElementById("r-hint").textContent=two?"No computador: F para a mão esquerda e J para a direita. Esc para parar.":"No computador, toque com a barra de espaço. Esc para parar.";
+    rGo.textContent=run?"Parar":(R.result?"Tocar de novo":"Começar");
+    if(!run) rPadText("",R.msg||(R.result?"Aperte “Tocar de novo” para repetir este exercício ou “Novo exercício” para outro."
+      :two?"Aperte “Começar”. Depois da contagem, comece com as duas mãos juntas no primeiro tempo: esse toque marca o início. A esquerda toca todos os tempos e a direita, o ritmo."
+      :"Aperte “Começar”. O metrônomo conta um compasso; depois, toque a primeira nota quando estiver pronto. Esse toque marca o início, e as outras notas são medidas a partir dele."));
+    document.getElementById("r-status").textContent=R.ex.measures.length+" compassos de "+R.ex.meter+"/4 · "+settings.r.bpm+" bpm"+(two?" · duas mãos":"");
+  }
+  function rStart(kind){
+    if(R.state!=="idle") return;
+    var AC=window.AudioContext||window.webkitAudioContext;
+    if(!AC){R.msg="Este navegador não consegue tocar o metrônomo.";rUI();return;}
+    actx=actx||new AC();
+    var ctx=actx;
+    R.state="starting"; R.kind=kind; R.msg="";
+    if(kind==="ex"){R.result=null;rResult.hidden=true;rDraw();}
+    rUI();
+    Promise.resolve(ctx.state==="suspended"?ctx.resume():null).then(function(){
+      if(R.state!=="starting") return;
+      var bpm=kind==="cal"?90:settings.r.bpm, meter=kind==="cal"?4:R.ex.meter, beat=60/bpm;
+      var bus=ctx.createGain(); bus.connect(ctx.destination); R.bus=bus;
+      var T0=ctx.currentTime+0.35, exBeats=kind==="cal"?12:R.ex.measures.length*meter, k;
+      for(k=0;k<meter;k++) rClick(ctx,bus,T0+k*beat,k===0);
+      // Na calibração os cliques seguem direto; no exercício, o metrônomo espera o primeiro toque.
+      if(kind==="cal") for(k=0;k<exBeats;k++) rClick(ctx,bus,T0+(meter+k)*beat,k%meter===0);
+      R.beatMs=beat*1000; R.meter=meter; R.countPerf=rPerfAt(ctx,T0); R.startPerf=R.countPerf+meter*R.beatMs; R.totalMs=exBeats*R.beatMs;
+      R.anchor=kind==="cal"?R.startPerf:null;
+      R.taps=[]; R.state="run"; rUI();
+      try{if(navigator.wakeLock)navigator.wakeLock.request("screen").then(function(w){R.wake=w;}).catch(function(){});}catch(e){}
+      R.raf=requestAnimationFrame(rTick);
+    }).catch(function(){R.state="idle";R.msg="Não foi possível ligar o som. Toque em “Começar” de novo.";rUI();});
+  }
+  function rTick(){
+    if(R.state!=="run") return;
+    var now=performance.now(), cal=R.kind==="cal", k=Math.floor((now-R.countPerf)/R.beatMs);
+    if(cal){
+      var el=now-R.startPerf;
+      rPadText(el<R.totalMs?(((k%R.meter)+R.meter)%R.meter)+1:"",el<0?"Toque junto com cada clique":"Continue tocando junto com os cliques");
+    } else if(R.anchor==null){
+      rPadText(k>=0&&k<R.meter?k+1:"",k<R.meter?"Contagem: prepare-se":(rTwo()?"Comece com as duas mãos juntas":"Toque a primeira nota para começar"));
+    } else {
+      rPadText("",rTwo()?"Esquerda em todos os tempos, direita no ritmo":"Toque no começo de cada nota");
+      var t16=Math.min(now-R.anchor,R.totalMs)/R.beatMs*4;
+      if(R.L&&R.L.strip) rScroll(t16); else if(settings.r.cursor) rCursor(t16);
+    }
+    if(R.anchor!=null&&now-R.anchor>R.totalMs+450){rFinish();return;}
+    R.raf=requestAnimationFrame(rTick);
+  }
+  function rTap(ts,h){
+    if(R.state!=="run") return;
+    var now=performance.now(), t=ts>0&&Math.abs(now-ts)<1000?ts:now, pad=rPads[h]||rPads.R;
+    pad.classList.add("hit"); clearTimeout(pad._t); pad._t=setTimeout(function(){pad.classList.remove("hit");},90);
+    if(R.anchor==null){
+      // Toques durante a contagem não contam; o primeiro depois dela (ou meio tempo antes) começa o exercício.
+      if(t<R.startPerf-0.5*R.beatMs) return;
+      R.anchor=t;
+      if(settings.r.metro==="sempre") rScheduleFrom(t);
+    }
+    R.taps.push({t:t,h:h});
+  }
+  function rRelease(){
+    if(R.bus){try{R.bus.disconnect();}catch(e){}R.bus=null;}
+    if(R.wake){try{R.wake.release();}catch(e){}R.wake=null;}
+    cancelAnimationFrame(R.raf);
+  }
+  function rStop(){if(R.state==="idle")return;R.state="idle";rRelease();rCursor(null);rScroll(0);rUI();}
+  function rFinish(){
+    R.state="idle"; rRelease();
+    if(R.kind==="cal") rCalFinish();
+    else {R.result=rEvaluate();rDraw();rShowResult();}
+    rUI();
+  }
+
+  /* Avaliação, mão por mão. O primeiro toque é o tempo zero. Cada toque vai para a nota mais próxima da sua mão,
+     dentro de uma janela que encolhe quando as notas são rápidas. Verde: até a metade da janela (no máximo 60 ms).
+     Amarelo: dentro da janela. Vermelho: nota sem toque ou toque sem nota. Como tudo é medido a partir do seu
+     toque, o atraso do aparelho se anula. */
+  function rNotesFor(h){
+    var beatMs=R.beatMs, meter=R.ex.meter, out=[];
+    if(h==="R") R.ex.measures.forEach(function(evs,m){evs.forEach(function(e,ei){if(!e.rest)out.push({key:"R"+m+"_"+ei,t:(m*meter*4+e.pos)/4*beatMs,m:m,pos:e.pos});});});
+    else for(var b=0;b<R.ex.measures.length*meter;b++) out.push({key:"L"+b,t:b*beatMs,beat:b});
+    return out;
+  }
+  function rMatch(notes,taps){
+    var beatMs=R.beatMs;
+    notes.forEach(function(n,k){
+      var a=k>0?n.t-notes[k-1].t:Infinity, b=k<notes.length-1?notes[k+1].t-n.t:Infinity;
+      n.win=Math.min(180,0.5*Math.min(a,b)); n.good=Math.min(60,0.5*n.win);
+    });
+    var match=notes.map(function(){return null;}), extras=[];
+    taps.forEach(function(t){
+      var best=-1, bd=Infinity;
+      notes.forEach(function(n,k){var d=Math.abs(t-n.t);if(d<bd){bd=d;best=k;}});
+      if(best<0||bd>notes[best].win){extras.push(t);return;}
+      if(match[best]===null) match[best]=t;
+      else if(bd<Math.abs(match[best]-notes[best].t)){extras.push(match[best]);match[best]=t;}
+      else extras.push(t);
+    });
+    var r={cls:{},dev:{},missed:[],ticks:[],ok:0,near:0,miss:0,extras:extras,extra:extras.length,total:notes.length,ndev:0,median:0}, devs=[];
+    notes.forEach(function(n,k){
+      var t=match[k];
+      if(t===null){r.cls[n.key]="bad";r.miss++;r.missed.push(n.key);return;}
+      var d=t-n.t, c=Math.abs(d)<=n.good?"ok":"near";
+      devs.push(d); r.dev[n.key]=d; r.cls[n.key]=c; if(c==="ok")r.ok++;else r.near++;
+      r.ticks.push({t16:t/beatMs*4,c:c});
+    });
+    extras.forEach(function(t){r.ticks.push({t16:Math.max(0,t)/beatMs*4,c:"bad"});});
+    r.ndev=devs.length; r.median=devs.length?median(devs):0;
+    return r;
+  }
+  function rEvaluate(){
+    var two=rTwo(), res={two:two,hands:{},cls:{},insights:[]};
+    (two?["R","L"]:["R"]).forEach(function(h){
+      var taps=R.taps.filter(function(x){return x.h===h;}).map(function(x){return x.t-R.anchor;})
+        .filter(function(t){return t>=0&&t<R.totalMs+300;}).sort(function(a,b){return a-b;});
+      var m=rMatch(rNotesFor(h),taps); res.hands[h]=m;
+      Object.keys(m.cls).forEach(function(k){res.cls[k]=m.cls[k];});
+    });
+    if(two){
+      // Erros típicos de coordenação entre as mãos.
+      var Lr=res.hands.L, Rn=rNotesFor("R"), meter=R.ex.meter, busy={}, has={};
+      var off=Rn.filter(function(n){return n.pos%4!==0;}).map(function(n){return n.t;});
+      var copies=Lr.extras.filter(function(t){return off.some(function(o){return Math.abs(o-t)<70;});}).length;
+      if(copies>=2) res.insights.push("A mão esquerda está acompanhando o ritmo da direita. Ela deve tocar só os tempos, como um metrônomo.");
+      Rn.forEach(function(n){var b=n.m*meter+Math.floor(n.pos/4);has[b]=1;if(n.pos%4!==0)busy[b]=1;});
+      var dB=[], dC=[];
+      Object.keys(Lr.dev).forEach(function(k){(busy[+k.slice(1)]?dB:dC).push(Math.abs(Lr.dev[k]));});
+      function mean(a){return a.reduce(function(s,x){return s+x;},0)/a.length;}
+      if(dB.length>=2&&dC.length>=2&&mean(dB)-mean(dC)>25) res.insights.push("A mão esquerda perde o pulso nos tempos em que a direita toca notas rápidas.");
+      var quiet=Lr.missed.filter(function(k){return !has[+k.slice(1)];}).length;
+      if(quiet>=2) res.insights.push("A mão esquerda parou nos tempos em que a direita segura uma nota longa ou faz pausa. Mantenha o pulso mesmo sem a direita tocar.");
+    }
+    return res;
+  }
+  function rHandLine(name,role,r){
+    var pct=r.total?Math.round(r.ok/r.total*100):0;
+    return '<p class="r-line"><b>'+name+'</b> ('+role+'): '+pct+'% · <span class="dot ok"></span>'+r.ok+' no tempo · <span class="dot near"></span>'+r.near+' um pouco fora · <span class="dot bad"></span>'+r.miss+' sem toque · '+r.extra+' a mais</p>';
+  }
+  function rTend(r,who){
+    if(r.ndev<3) return "";
+    if(Math.abs(r.median)<15) return who?"":"Seus toques ficaram centrados no tempo.";
+    return (who||"Você")+" tende a "+(r.median<0?"adiantar":"atrasar")+" cerca de "+Math.round(Math.abs(r.median))+" ms.";
+  }
+  function rShowResult(){
+    var res=R.result, Rr=res.hands.R, html, tip, ok, tot, extra, lines=[];
+    if(!res.two){
+      ok=Rr.ok; tot=Rr.total; extra=Rr.extra;
+      html='<p class="r-score">'+(tot?Math.round(ok/tot*100):0)+'% no tempo</p>'
+        +'<p class="r-line"><span class="dot ok"></span>No tempo: '+Rr.ok+' · <span class="dot near"></span>Um pouco fora: '+Rr.near+' · <span class="dot bad"></span>Faltaram: '+Rr.miss+' · Toques a mais: '+Rr.extra+'</p>';
+      lines.push(rTend(Rr,""));
+    } else {
+      var Lr=res.hands.L; ok=Rr.ok+Lr.ok; tot=Rr.total+Lr.total; extra=Rr.extra+Lr.extra;
+      html='<p class="r-score">'+Math.round(ok/tot*100)+'% no tempo</p>'+rHandLine("Mão direita","ritmo",Rr)+rHandLine("Mão esquerda","pulso",Lr);
+      lines=res.insights.concat([rTend(Rr,"A mão direita"),rTend(Lr,"A mão esquerda")]);
+    }
+    var pct=tot?Math.round(ok/tot*100):0;
+    if(ok===tot&&extra===0) tip=(res.two?"As duas mãos no tempo. ":"Tudo no tempo. ")+"Experimente subir o andamento em 5 bpm"+(settings.r.metro==="sempre"?" ou deixar o metrônomo só na contagem.":".");
+    else if(pct<60) tip=res.two?"Diminua o andamento. Se precisar, pratique a mão esquerda sozinha contando os tempos em voz alta e depois junte a direita.":"Diminua o andamento e conte os tempos em voz alta enquanto toca.";
+    else tip="Repita este exercício até todas as notas ficarem verdes.";
+    lines.push(tip);
+    lines.filter(Boolean).forEach(function(s){html+='<p class="r-line">'+s+'</p>';});
+    html+='<p class="r-legend">O seu primeiro toque é a referência, por isso a primeira nota sempre fica verde. Os traços embaixo de cada linha mostram onde você tocou: à esquerda da nota é adiantado, à direita é atrasado.</p>';
+    rResult.innerHTML=html; rResult.hidden=false;
+  }
+  function rCalText(){
+    var r=settings.r;
+    document.getElementById("r-calib-txt").textContent=r.calibrated
+      ?"Compensação de atraso: "+r.latency+" ms. O metrônomo adianta os cliques nesse tanto para soar junto com o seu toque."
+      :"Sem calibração. Se o metrônomo parecer atrasado em relação aos seus toques, calibre uma vez neste aparelho.";
+  }
+  // Calibração: 4 cliques de preparação e 12 para medir. O atraso é a mediana da diferença entre toque e clique.
+  function rCalFinish(){
+    var offs=[];
+    R.taps.forEach(function(tp){
+      var rel=tp.t-R.startPerf, k=Math.round(rel/R.beatMs);
+      if(k<0||k>=12) return;
+      var d=rel-k*R.beatMs; if(Math.abs(d)<0.35*R.beatMs) offs.push(d);
+    });
+    if(offs.length<6){R.msg="Não deu para medir. Toque junto com cada clique até o fim e tente de novo.";return;}
+    settings.r.latency=clamp(Math.round(median(offs)),-150,400); settings.r.calibrated=true; saveSettings(); rCalText();
+    R.msg="Calibração feita: "+settings.r.latency+" ms. Agora aperte “"+(R.result?"Tocar de novo":"Começar")+"”.";
+  }
+
+  function tempoName(b){return b<60?"Largo":b<66?"Larghetto":b<76?"Adagio":b<108?"Andante":b<120?"Moderato":b<156?"Allegro":"Vivace";}
+  function sameSet(a,b){return a.length===b.length&&a.every(function(x){return b.indexOf(x)>=0;});}
+  function rRenderControls(){
+    var r=settings.r;
+    document.querySelectorAll("[data-meter]").forEach(function(b){b.setAttribute("aria-checked",String(+b.dataset.meter===r.meter));});
+    document.querySelectorAll("[data-metro]").forEach(function(b){b.setAttribute("aria-checked",String(b.dataset.metro===r.metro));});
+    document.querySelectorAll("[data-hands-r]").forEach(function(b){b.setAttribute("aria-checked",String(b.dataset.handsR===r.hands));});
+    document.querySelectorAll("[data-view]").forEach(function(b){b.setAttribute("aria-checked",String(b.dataset.view===r.view));});
+    document.getElementById("r-counts").innerHTML=R_COUNTS.map(function(n){
+      return '<button type="button" role="radio" id="rc-'+n+'" data-count="'+n+'" aria-checked="'+(n===r.measures)+'">'+n+'</button>';
+    }).join("");
+    document.getElementById("sw-cursor").setAttribute("aria-checked",String(r.cursor));
+    document.getElementById("cursor-txt").textContent=r.cursor?"Ligada":"Desligada";
+    document.getElementById("bpm").value=r.bpm;
+    document.getElementById("bpm-val").textContent=r.bpm;
+    document.getElementById("bpm-name").textContent=tempoName(r.bpm);
+    var lv=-1;
+    RLEVELS.forEach(function(L,i){if(sameSet(L.figs,r.figs))lv=i;});
+    document.getElementById("r-levels").innerHTML=RLEVELS.map(function(L,i){
+      return '<button type="button" class="chip" role="radio" id="lv-'+(i+1)+'" data-level="'+i+'" aria-checked="'+(i===lv)+'">'+(i+1)+'</button>';
+    }).join("");
+    document.getElementById("r-figs").innerHTML=RFIGS.map(function(fg){
+      return '<button type="button" class="chip" role="checkbox" id="fg-'+fg.id+'" data-fig="'+fg.id+'" aria-checked="'+(r.figs.indexOf(fg.id)>=0)+'"'
+        +(fg.locked?' aria-disabled="true" title="A semínima é o tempo e fica sempre ativa"':'')+'>'+fg.label+'</button>';
+    }).join("");
+    var d=lv>=0?RLEVELS[lv].desc:"Combinação personalizada de figuras.";
+    if(r.meter===2&&(r.figs.indexOf("semibreve")>=0||r.figs.indexOf("minpont")>=0)) d+=" Em 2/4 não cabem semibreve nem mínima pontuada.";
+    else if(r.meter===3&&r.figs.indexOf("semibreve")>=0) d+=" Em 3/4 não cabe semibreve.";
+    if(r.hands==="duas") d+=" Duas mãos: a direita toca o ritmo (linha de cima) e a esquerda, todos os tempos (linha de baixo).";
+    if(r.view==="rolando") d+=r.cursor?" Rolando: as notas passam pela linha fixa; toque quando cada uma chegar nela.":" Rolando: as notas andam da direita para a esquerda no andamento escolhido.";
+    document.getElementById("r-desc").textContent=d;
+  }
+  function rNew(){R.result=null;R.msg="";rResult.hidden=true;rGenerate();rDraw();rUI();}
+  function rSetBpm(v){settings.r.bpm=clamp(Math.round(v),40,160);saveSettings();rRenderControls();rUI();}
+
+  document.querySelectorAll("[data-meter]").forEach(function(b){
+    b.addEventListener("click",function(){if(+b.dataset.meter===settings.r.meter)return;settings.r.meter=+b.dataset.meter;saveSettings();rRenderControls();rNew();});
+  });
+  document.querySelectorAll("[data-metro]").forEach(function(b){
+    b.addEventListener("click",function(){settings.r.metro=b.dataset.metro;saveSettings();rRenderControls();});
+  });
+  document.querySelectorAll("[data-hands-r]").forEach(function(b){
+    b.addEventListener("click",function(){
+      if(b.dataset.handsR===settings.r.hands) return;
+      settings.r.hands=b.dataset.handsR; saveSettings(); rRenderControls();
+      R.result=null; R.msg=""; rResult.hidden=true; rDraw(); rUI();
+    });
+  });
+  document.querySelectorAll("[data-view]").forEach(function(b){
+    b.addEventListener("click",function(){if(b.dataset.view===settings.r.view)return;settings.r.view=b.dataset.view;saveSettings();rRenderControls();rDraw();});
+  });
+  document.getElementById("r-counts").addEventListener("click",function(e){
+    var b=e.target.closest("[data-count]"); if(!b||+b.dataset.count===settings.r.measures) return;
+    settings.r.measures=+b.dataset.count; saveSettings(); rRenderControls(); rNew();
+  });
+  document.getElementById("sw-cursor").addEventListener("click",function(){settings.r.cursor=!settings.r.cursor;saveSettings();rRenderControls();if(settings.r.view==="rolando")rDraw();});
+  document.getElementById("bpm").addEventListener("input",function(e){rSetBpm(+e.target.value);});
+  document.getElementById("bpm-down").addEventListener("click",function(){rSetBpm(settings.r.bpm-5);});
+  document.getElementById("bpm-up").addEventListener("click",function(){rSetBpm(settings.r.bpm+5);});
+  document.getElementById("r-levels").addEventListener("click",function(e){
+    var b=e.target.closest("[data-level]"); if(!b) return;
+    settings.r.figs=RLEVELS[+b.dataset.level].figs.slice(); saveSettings(); rRenderControls(); rNew();
+  });
+  document.getElementById("r-figs").addEventListener("click",function(e){
+    var b=e.target.closest("[data-fig]"); if(!b||b.getAttribute("aria-disabled")==="true") return;
+    var id=b.dataset.fig, i=settings.r.figs.indexOf(id);
+    if(i>=0) settings.r.figs.splice(i,1); else settings.r.figs.push(id);
+    saveSettings(); rRenderControls(); rNew();
+  });
+  document.getElementById("r-new").addEventListener("click",rNew);
+  rGo.addEventListener("click",function(){if(R.state==="idle")rStart("ex");else rStop();});
+  document.getElementById("r-calib").addEventListener("click",function(){rStart("cal");});
+  // Cada área de toque responde sozinha, então dá para tocar com as duas mãos ao mesmo tempo no celular.
+  Object.keys(rPads).forEach(function(h){
+    rPads[h].addEventListener("pointerdown",function(e){if(R.state!=="run")return;e.preventDefault();rTap(e.timeStamp,rTwo()?h:"R");});
+  });
+  document.addEventListener("keydown",function(e){
+    if(settings.tab!=="ritmo"||R.state==="idle") return;
+    if(e.key==="Escape"){rStop();return;}
+    if(e.metaKey||e.ctrlKey||e.altKey||e.key==="Tab") return;
+    e.preventDefault();
+    if(e.repeat) return;
+    var h="R";
+    if(rTwo()){
+      var k=(e.key||"").toLowerCase();
+      if(k.length!==1) return;
+      if("asdfg".indexOf(k)>=0) h="L"; else if("hjklç;".indexOf(k)>=0) h="R"; else return;
+    }
+    rTap(e.timeStamp,h);
+  });
 
   /* ---------- abas ---------- */
-  var tabs={treino:document.getElementById("tab-treino"),folha:document.getElementById("tab-folha")};
-  var panels={treino:document.getElementById("panel-treino"),folha:document.getElementById("panel-folha")};
-  function showTab(t){
-    settings.tab=t; saveSettings();
+  var tabs={treino:document.getElementById("tab-treino"),folha:document.getElementById("tab-folha"),ritmo:document.getElementById("tab-ritmo")};
+  var panels={treino:document.getElementById("panel-treino"),folha:document.getElementById("panel-folha"),ritmo:document.getElementById("panel-ritmo")};
+  function applyTabs(){
+    var t=settings.tab;
     Object.keys(tabs).forEach(function(k){tabs[k].setAttribute("aria-selected",String(k===t));panels[k].hidden=(k!==t);});
-    if(t==="treino") renderDrill(); else renderSheet();
+    // Clave, extensão e mapa das notas não valem para o ritmo.
+    document.getElementById("global-settings").hidden=(t==="ritmo");
+    document.getElementById("map").hidden=(t==="ritmo");
   }
-  tabs.treino.addEventListener("click",function(){showTab("treino");});
-  tabs.folha.addEventListener("click",function(){showTab("folha");});
+  function showTab(t){
+    if(t!=="ritmo") rStop();
+    settings.tab=t; saveSettings(); applyTabs();
+    if(t==="treino"){startClock();renderDrill();} else if(t==="folha") renderSheet(); else rDraw();
+  }
+  Object.keys(tabs).forEach(function(k){tabs[k].addEventListener("click",function(){showTab(k);});});
 
   /* ---------- redimensionamento ---------- */
-  var lastW={d:0,s:0}, raf=0;
+  var lastW={d:0,s:0,r:0}, raf=0;
   function onResize(){
     cancelAnimationFrame(raf);
     raf=requestAnimationFrame(function(){
-      var dw=drillHost.clientWidth, sw=sheetHost.clientWidth;
+      var dw=drillHost.clientWidth, sw=sheetHost.clientWidth, rw=rHost.clientWidth;
       if(dw&&dw!==lastW.d){lastW.d=dw;renderDrill();}
       if(sw&&sw!==lastW.s){lastW.s=sw;renderSheet();}
+      if(rw&&rw!==lastW.r){lastW.r=rw;rDraw();}
     });
   }
-  if(window.ResizeObserver){var ro=new ResizeObserver(onResize);ro.observe(drillHost);ro.observe(sheetHost);}
+  if(window.ResizeObserver){var ro=new ResizeObserver(onResize);ro.observe(drillHost);ro.observe(sheetHost);ro.observe(rHost);}
   else window.addEventListener("resize",onResize);
 
   /* ---------- início ---------- */
   var h=(location.hash||"").replace("#","");
-  if(h==="folha"||h==="treino") settings.tab=h;
+  if(tabs[h]) settings.tab=h;
+  if(!tabs[settings.tab]) settings.tab="treino";
   syncSwitches(); renderPresets(); renderPad(); renderStats(); renderWeak(); renderReset(false); renderMap();
-  Object.keys(tabs).forEach(function(k){tabs[k].setAttribute("aria-selected",String(k===settings.tab));panels[k].hidden=(k!==settings.tab);});
-  newDrillLine(); newSheet();
+  rGenerate(); rRenderControls(); rCalText(); rUI();
+  applyTabs();
+  newDrillLine(); newSheet(); rDraw();
 })();
 </script>
 <script>
 if("serviceWorker" in navigator && /^https?:$/.test(location.protocol)){
+  var hadController=!!navigator.serviceWorker.controller, reloaded=false;
+  // Quando uma versão nova do app assume, recarrega uma vez para mostrá-la.
+  navigator.serviceWorker.addEventListener("controllerchange",function(){if(hadController&&!reloaded){reloaded=true;location.reload();}});
   window.addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(){});});
 }
 </script>

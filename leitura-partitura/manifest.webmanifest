@@ -2,7 +2,7 @@
   "name": "Leitura de Partitura",
   "short_name": "Leitura",
   "lang": "pt-BR",
-  "description": "Treino de leitura de notas nas claves de Sol e Fá.",
+  "description": "Treino de leitura de notas nas claves de Sol e Fá e de ritmo com metrônomo.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
