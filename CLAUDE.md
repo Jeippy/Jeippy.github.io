@@ -1,0 +1,48 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## O que é
+
+Site de usuário do GitHub Pages (`Jeippy.github.io`). Hoje o único conteúdo é `leitura-partitura/`: um PWA offline em pt-BR para treinar leitura de notas (claves de Sol, Fá e as duas juntas), ritmo com metrônomo e os 12 acordes maiores no teclado. Não existe `index.html` na raiz. O dono usa num Galaxy Tab S9 FE (Chrome, Android) com um piano digital ligado por USB-MIDI.
+
+Sem build, sem dependências, sem testes, sem linter. Os arquivos são servidos exatamente como estão no repositório. O histórico mostra que as versões chegam por upload na interface web do GitHub ("Add files via upload").
+
+## Rodar localmente
+
+Abrir `leitura-partitura/index.html` direto no navegador funciona, mas o service worker só é registrado em `http(s)`. Para testar o modo offline/PWA, sirva a raiz do repositório:
+
+```powershell
+python -m http.server 8000
+```
+
+e abra `http://localhost:8000/leitura-partitura/`. No painel de navegador do Claude Code, use `preview_start` com a configuração `site` de `.claude/launch.json`. O `http.server` do Python no Windows entrega `.js` como `text/plain`, então o registro do service worker falha localmente. Isso é esperado e não acontece no GitHub Pages.
+
+Para testar a aba Acordes sem teclado, troque `navigator.requestMIDIAccess` por uma função falsa antes de clicar em "Conectar teclado MIDI". A função deve devolver `{inputs: new Map([["1", entrada]])}`. Depois, chame `entrada.onmidimessage({data: new Uint8Array([0x90, nota, 100]), timeStamp: performance.now()})` para simular cada nota.
+
+## Publicar uma mudança: incrementar o cache
+
+`sw.js` é cache-first: quem já instalou o app continua vendo a versão em cache até o nome do cache mudar. **Sempre que alterar qualquer arquivo listado em `ASSETS`, incremente `CACHE` em `sw.js`** (hoje `leitura-partitura-v10`). Na ativação, o SW apaga os caches antigos, e o `index.html` recarrega a página uma vez no `controllerchange`. Se adicionar um arquivo novo ao app, inclua-o em `ASSETS`.
+
+## Arquitetura do `index.html`
+
+Tudo fica num único arquivo (~1760 linhas): CSS, um `<svg class="defs">` com os glifos e um IIFE em JS.
+
+- **Linha 18 = fontes embutidas em base64** (Bodoni Moda 500/600 normal e itálico, Atkinson Hyperlegible 400/700), com ~130 KB numa linha só. Não leia essa linha. Use `Read` com `offset: 19`, ou `Grep`, porque ler o arquivo do início estoura o limite.
+- **Estilo do JS:** ES5 (`var`, `function`, sem arrow functions, `"use strict"` dentro do IIFE). Comentários, textos da interface e nomes de ajustes em português. Os arquivos usam CRLF. Mantenha esse estilo. O `sed -i` do Git Bash troca CRLF por LF: prefira a ferramenta Edit.
+- **Seções**, marcadas por comentários `/* ---------- nome ---------- */`: armazenamento, som, desenho da pauta, geração de notas, treino, desempenho, folha de leitura, mapa, ajustes, ritmo, acordes (sequência, teclado MIDI, série, desenho, ajustes e desempenho), abas, redimensionamento, início.
+- **Modelo de altura:** uma nota é um inteiro em passos diatônicos, `oitava*7 + índice da letra`, com Dó central = 28. `CLEFS[st].base` é a nota da 1ª linha (Sol: 30, Fá: 18). As extensões (`PRESETS` para uma clave, `GRAND_PRESETS` para as duas pautas) são posições relativas à 1ª linha (0 = 1ª linha, 8 = 5ª). `pool()` devolve `{d, st}` da extensão atual.
+- **Desenho:** a pauta é SVG gerado como string (`noteSVG`, `systemSVG`; o ritmo usa `rLayout` e `rDraw`). Os glifos musicais são `<path>` em `<defs>` (`#g-clef`, `#f-clef`, `#g-head`, pausas, bandeirolas, fórmulas de compasso), usados via `<use>` em unidades de "espaço" da pauta. As cores vêm das classes (`.nt.ok`, `.nt.bad`, `.nt.cur`…) ligadas às variáveis CSS.
+- **Quatro abas** (`settings.tab`, que também aceita `#treino`, `#folha`, `#ritmo` ou `#acordes` na URL):
+  - *Treino*: escolha ponderada de notas (`pickDrill`). O peso vem de `statInfo(p, ref)`, que a aba Acordes também usa. Cada item aparece primeiro `FRESH_N` vezes. Depois, o peso cresce com os erros recentes (`RECENT`) e com a demora em relação ao tempo típico (`TIMES`).
+  - *Folha de leitura*: compassos gerados como eventos `{b, dur, d}` por clave (`genSingle`, `genAlternating`, `genTogether` com acordes I/IV/V).
+  - *Ritmo*: durações contadas em semicolcheias (semínima = 4). O metrônomo é agendado no relógio do Web Audio e convertido para `performance.now` (`rPerfAt` e `rCtxAt`). O exercício começa no 1º toque. A avaliação (`rMatch` e `rEvaluate`) mede a partir desse toque, e a calibração (`settings.r.latency`) compensa o atraso do aparelho. O estado de execução fica no objeto `R`.
+  - *Acordes*: as tríades maiores são itens `{L, a, pc, inv}`, e na progressão também `{key, deg}`. A grafia vem de `cTones` (Mi maior = Mi, Sol♯, Si) e a ordem de baixo para cima de `cVoice`. `CROOTS` está na ordem do ciclo de quintas, e `CGROUPS` agrupa os acordes pelo desenho de teclas brancas e pretas. `cGen` monta a série de três jeitos: sorteada com peso, ciclo de quintas (com inversões, `cNearest` escolhe a mais próxima da anterior) ou I–IV–V–I. Com MIDI, `MIDI.held` guarda as notas apertadas. `cMatches` exige 3 notas por mão, na ordem da inversão e dentro de uma oitava. Um erro só conta se houve nota nova (`MIDI.dirty`) e o conjunto ficou parado por 160 ms, porque na troca as notas mudam aos poucos. "No meu tempo" mede a troca entre completar um acorde e o seguinte. "Com metrônomo" reaproveita `rClick` e `rPerfAt` do Ritmo, e cada acorde vale do meio tempo antes do seu tempo 1 até o fim da sua vez. Sem MIDI, o próprio usuário confere (`cCheck` e `cMark`). O estado da série fica no objeto `C`.
+- **Som:** Web Audio sintetizado na hora (osciladores e ruído). Não há arquivos de áudio.
+- **Persistência:** `localStorage` via `store`, com três chaves:
+  - `lcs-settings`: os ajustes. Os do ritmo ficam em `settings.r` e os dos acordes em `settings.c`.
+  - `lcs-stats`: estatísticas por nota em `stats.per["clave:nota"]`.
+  - `lcs-chords`: estatísticas dos acordes em `cstats.per["altura:inversão"]`. Só os tempos medidos pelo MIDI entram na troca média. Na carga, os ajustes são mesclados com os padrões e validados um a um. **Ao criar um ajuste novo, adicione o padrão e a validação**, e se mudar o formato dos dados, faça a migração no carregamento (como a das chaves antigas sem `clave:`), para não quebrar dados já salvos nos aparelhos.
+- **Tema:** variáveis CSS em `:root`, com modo escuro por `prefers-color-scheme` ou `data-theme`. `theme-color` aparece em `index.html` e em `manifest.webmanifest` (`#EDF0F3`).
+
+`LEIA-ME.txt` são as instruções de instalação para o usuário final (hospedar em https e adicionar à tela inicial). Atualize esse arquivo se o fluxo de instalação ou de atualização mudar.
