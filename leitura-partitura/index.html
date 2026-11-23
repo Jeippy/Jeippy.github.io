@@ -325,6 +325,7 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
     <div class="card drill">
       <div class="card-head">
         <p class="progress" id="progress"></p>
+        <p class="c-midi midi-line" data-midi="opt"></p>
         <button class="txtbtn" id="btn-skip">Nova pauta</button>
       </div>
       <div class="staff-host" id="drill-host"></div>
@@ -354,6 +355,7 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
       <div class="sheet-head">
         <p class="sheet-intro" id="sheet-intro">Leia as notas em voz alta num pulso constante, quatro por compasso, sem parar para corrigir. Depois confira com “Mostrar nomes”. Toque numa nota para ouvir.</p>
         <div class="sheet-ctrl">
+          <p class="c-midi midi-line" data-midi="opt"></p>
           <div class="seg" role="radiogroup" aria-label="Mãos" id="hands-seg" hidden>
             <button role="radio" id="hd-alt" data-hands="alternadas" aria-checked="true">Mãos alternadas</button>
             <button role="radio" id="hd-jun" data-hands="juntas" aria-checked="false">Mãos juntas</button>
@@ -363,6 +365,8 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
         </div>
       </div>
       <div class="sheet-host clickable" id="sheet-host"></div>
+      <p class="feedback" id="sheet-feedback" aria-live="polite" hidden></p>
+      <div class="r-result" id="sheet-result" aria-live="polite" hidden></div>
     </div>
   </section>
 
@@ -444,13 +448,14 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
     <div class="card">
       <div class="card-head">
         <p class="progress" id="r-status"></p>
+        <p class="c-midi midi-line" data-midi="opt"></p>
         <button type="button" class="txtbtn" id="r-new">Novo exercício</button>
       </div>
       <div class="staff-host" id="r-host"></div>
       <div class="r-result" id="r-result" aria-live="polite" hidden></div>
       <div class="r-state"><span class="rpad-num" id="r-num"></span><span class="rpad-lbl" id="r-lbl"></span></div>
       <div class="rpads">
-        <div class="rpad" id="r-pad-l" data-hand="L" hidden><span class="rpad-hand">Mão esquerda</span><span class="rpad-sub">pulso · tecla F</span></div>
+        <div class="rpad" id="r-pad-l" data-hand="L" hidden><span class="rpad-hand">Mão esquerda</span><span class="rpad-sub" id="r-pad-l-sub">pulso · tecla F</span></div>
         <div class="rpad" id="r-pad" data-hand="R"><span class="rpad-hand" id="r-pad-r-title">Toque aqui</span><span class="rpad-sub" id="r-pad-r-sub">ou use a barra de espaço</span></div>
       </div>
       <div class="r-actions">
@@ -547,7 +552,7 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
     <div class="card">
       <div class="card-head">
         <p class="progress" id="c-status"></p>
-        <p class="c-midi" id="c-midi"></p>
+        <p class="c-midi midi-line" id="c-midi" data-midi="full"></p>
       </div>
       <div class="c-stage">
         <div class="c-now">
@@ -727,6 +732,85 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
     }catch(e){}
   }
 
+  /* ---------- teclado MIDI ---------- */
+  /* Uma conexão para o app todo; cada nota vai para a aba aberta. Treino e Folha conferem a nota tocada, o Ritmo
+     usa cada tecla como um toque e os Acordes conferem o conjunto de notas apertadas.
+     held: notas apertadas agora (nota MIDI → instante). setT: instante da última mudança no conjunto.
+     dirty: houve nota nova desde o último acorde reconhecido; segurar o acorde anterior não conta como erro. */
+  var MIDI={access:null,state:"off",names:[],held:{},setT:0,dirty:false};
+  function midiOn(){return MIDI.state==="on";}
+  function midiConnect(){
+    if(!navigator.requestMIDIAccess){MIDI.state="unsupported";midiChanged();return;}
+    MIDI.state="wait"; midiUI();
+    navigator.requestMIDIAccess().then(function(acc){
+      MIDI.access=acc; acc.onstatechange=midiBind; midiBind();
+    },function(){MIDI.state="denied";midiChanged();});
+  }
+  function midiBind(){
+    var names=[];
+    MIDI.access.inputs.forEach(function(inp){
+      inp.onmidimessage=midiMsg;
+      if(inp.state!=="disconnected") names.push(inp.name||"Teclado MIDI");
+    });
+    MIDI.names=names; MIDI.state=names.length?"on":"none";
+    if(!names.length){
+      MIDI.held={};
+      if(C.state!=="idle"&&C.mode==="midi") cStop("O teclado foi desconectado. Ligue o cabo e comece de novo.");
+    }
+    midiChanged();
+  }
+  // Já com permissão dada antes, conecta sozinho ao abrir o app.
+  function midiAuto(){
+    if(!navigator.requestMIDIAccess){MIDI.state="unsupported";midiUI();return;}
+    try{
+      if(navigator.permissions) navigator.permissions.query({name:"midi"}).then(function(p){if(p.state==="granted")midiConnect();}).catch(function(){});
+    }catch(e){}
+  }
+  function midiMsg(e){
+    var d=e.data; if(!d||d.length<3) return;
+    var st=d[0]&0xF0, nt=d[1], on=st===0x90&&d[2]>0;
+    if(!on&&st!==0x80&&st!==0x90) return;
+    var t=rStamp(e.timeStamp);
+    if(on){if(MIDI.held[nt])return;MIDI.held[nt]=t;MIDI.dirty=true;}
+    else {if(!MIDI.held[nt])return;delete MIDI.held[nt];}
+    MIDI.setT=t;
+    var tab=settings.tab;
+    if(tab==="acordes") cOnNotes();
+    // Ritmo com as duas mãos: abaixo do Dó central é a esquerda; do Dó central para cima, a direita.
+    else if(tab==="ritmo"){if(on)rDown(e.timeStamp,rTwo()&&nt<60?"L":"R","m"+nt);else rUp(e.timeStamp,"m"+nt);}
+    else if(on&&tab==="treino") answer(null,nt);
+    else if(on&&tab==="folha") fKey(nt,t);
+  }
+  // Linha de estado do teclado em cada aba. Com data-midi="opt", ela some nos navegadores sem MIDI.
+  function midiUI(){
+    var s=MIDI.state, h;
+    if(s==="on") h='<span class="dot ok"></span>'+cEsc(MIDI.names.join(", "));
+    else if(s==="wait") h='Procurando o teclado…';
+    else if(s==="none") h='Nenhum teclado MIDI encontrado. Ligue o cabo USB.';
+    else if(s==="denied") h='Sem permissão para o teclado. Libere “Dispositivos MIDI” nas permissões do site e <button type="button" class="txtbtn midi-btn">tente de novo</button>.';
+    else if(s==="unsupported") h=window.isSecureContext===false?'Para usar o teclado MIDI, abra o app pelo endereço https.':'Este navegador não recebe teclado MIDI. No Android, use o Chrome.';
+    else h='<button type="button" class="txtbtn midi-btn">Conectar teclado MIDI</button>';
+    document.querySelectorAll(".midi-line").forEach(function(el){
+      var x=(s==="unsupported"&&el.getAttribute("data-midi")!=="full")?"":h;
+      if(el._h!==x){el._h=x;el.innerHTML=x;}
+    });
+  }
+  function midiChanged(){
+    midiUI(); drillHint(); sheetMidiUI(); renderSheet(); rUI(); rCalText(); cRender();
+  }
+  document.addEventListener("click",function(e){if(e.target.closest&&e.target.closest(".midi-btn"))midiConnect();});
+  // Nota MIDI ↔ nota da pauta (passos diatônicos, Dó central = 28 = MIDI 60). Teclas pretas não têm nota na pauta.
+  var MIDI_L={0:0,2:1,4:2,5:3,7:4,9:5,11:6};
+  function midiToD(k){var l=MIDI_L[k%12];return l==null?null:(Math.floor(k/12)-1)*7+l;}
+  function dToMidi(d){return (Math.floor(d/7)+1)*12+SEMI[letterOf(d)];}
+  // A tecla tocada, dita em relação à nota pedida: "Lá", "Fá♯" ou "o Sol uma oitava abaixo".
+  function midiDesc(k,d){
+    var pd=midiToD(k);
+    if(pd==null) return cPcName(k%12,false);
+    if(pd!==d&&letterOf(pd)===letterOf(d)){var o=Math.round((pd-d)/7);return "o "+nameOf(pd)+" "+(["","uma oitava","duas oitavas","três oitavas"][Math.abs(o)]||Math.abs(o)+" oitavas")+(o>0?" acima":" abaixo");}
+    return nameOf(pd);
+  }
+
   /* ---------- desenho da pauta ---------- */
   // it: {x, st, d, dur (1 semínima, 2 mínima, 4 semibreve), rest, cls, label, lcls, lsize, hit, finger}
   function noteSVG(it,g){
@@ -865,9 +949,10 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
     for(var i=0;i<n;i++){prev=pickDrill(prev,notes);notes.push(prev);}
     drill.notes=notes;drill.status=notes.map(function(){return null;});drill.idx=0;drill.line++;drill.busy=false;
     startClock();
-    setFeedback("Qual é a nota destacada? Responda pelos botões ou pelo teclado.","");
+    drillPrompt();
     renderDrill();
   }
+  function drillPrompt(){setFeedback(midiOn()?"Qual é a nota destacada? Toque-a no piano, na oitava certa.":"Qual é a nota destacada? Responda pelos botões ou pelo teclado.","");}
   function renderDrill(){
     var cw=drillHost.clientWidth; if(!cw) return;
     var g=drillGeom(cw), sp=g.sp, n=drill.notes.length;
@@ -893,7 +978,13 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
       h+='<button class="key" data-l="'+i+'" id="key-'+i+'" aria-label="'+SOLF[i]+' ('+LET[i]+')"><span class="nm">'+letterName(i)+'</span><span class="kb">'+kb+'</span></button>';
     }
     pad.innerHTML=h;
-    document.getElementById("hint").textContent=settings.naming==="letras"
+    drillHint();
+  }
+  function drillHint(){
+    if(drill.notes.length&&drill.idx===0&&!drill.busy) drillPrompt();   // pauta ainda sem resposta: ajusta a pergunta
+    document.getElementById("hint").textContent=midiOn()
+      ? "Com o teclado MIDI, toque a nota na altura escrita: o mesmo nome em outra oitava conta como erro. Os botões continuam valendo."
+      : settings.naming==="letras"
       ? "Teclado: letras C D E F G A B ou números 1 a 7."
       : "Teclado: letras C D E F G A B (Dó = C) ou números 1 a 7 (Dó = 1).";
   }
@@ -902,9 +993,12 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
     el.classList.remove("is-ok","is-bad"); void el.offsetWidth; el.classList.add("is-"+kind);
     clearTimeout(el._t); el._t=setTimeout(function(){el.classList.remove("is-"+kind);},520);
   }
-  function answer(li){
+  // li: botão da letra (0 = Dó). key: nota MIDI tocada no piano, que precisa estar na oitava escrita.
+  function answer(li,key){
     if(drill.busy||drill.idx>=drill.notes.length) return;
-    var nt=drill.notes[drill.idx], d=nt.d, ok=(letterOf(d)===li);
+    var nt=drill.notes[drill.idx], d=nt.d, midi=key!=null, kd=midi?midiToD(key):null;
+    var ok=midi?kd===d:letterOf(d)===li;
+    if(midi) li=kd==null?null:letterOf(kd);
     // Respostas muito acima do seu tempo típico contam como pausa: o acerto ou erro vale, o tempo não.
     var dt=performance.now()-drill.t0, ref=typicalMs(), limit=clamp(4*(ref||3000),8000,20000);
     var timed=!drill.interrupted&&dt<=limit;
@@ -919,11 +1013,12 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
     }
     else {p.w++;stats.streak=0;}
     drill.status[drill.idx]=ok?"ok":"bad";
-    play(d);
-    flashKey(li,ok?"ok":"bad"); if(!ok) flashKey(letterOf(d),"ok");
+    if(!midi) play(d);   // com o teclado, o próprio piano já soa
+    if(li!=null) flashKey(li,ok?"ok":"bad");
+    if(!ok) flashKey(letterOf(d),"ok");
     var fg=fingerOf(nt), fgTxt=fg?" "+(nt.st==="sol"?"Mão direita":"Mão esquerda")+", dedo "+fg+".":"";
     var msg=ok?(timed?"Certo em "+fmt1(dt/1000)+" s: ":"Certo: ")+nameOf(d)+", "+posName(d,nt.st)+"."+fgTxt+(timed?"":" Tempo não contado porque houve uma pausa.")
-              :"Era "+nameOf(d)+", "+posName(d,nt.st)+"."+fgTxt+" Você marcou "+letterName(li)+".";
+              :"Era "+nameOf(d)+", "+posName(d,nt.st)+"."+fgTxt+(midi?" Você tocou "+midiDesc(key,d)+".":" Você marcou "+letterName(li)+".");
     drill.idx++;
     saveStats(); renderStats(); renderWeak();
     if(drill.idx>=drill.notes.length){
@@ -1059,7 +1154,7 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
     if(!isGrand()) ms=genSingle(settings.clef,24);
     else ms=settings.hands==="juntas"?genTogether(16):genAlternating(16);
     sheet={staves:staves(),measures:ms};
-    renderSheet();
+    fBuild(); renderSheet();
   }
   function renderSheet(){
     var cw=sheetHost.clientWidth; if(!cw) return;
@@ -1068,6 +1163,7 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
     var firstStart=tsX+1.8*sp+1.1*sp, otherStart=clefEnd+1.3*sp, mMin=4*3.1*sp+1.6*sp, M=sheet.measures.length;
     var m=clamp(Math.floor((cw-1-firstStart)/mMin),1,4);
     while(M%m) m--;
+    F.mps=m;
     var systems=M/m, out=[], show=settings.showNames, ls=Math.max(11,1.15*sp);
     for(var sy=0;sy<systems;sy++){
       var start=sy===0?firstStart:otherStart, endX=cw-1, mW=(endX-start)/m, inner=mW-1.6*sp;
@@ -1078,7 +1174,7 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
         sts.forEach(function(st){
           (meas[st]||[]).forEach(function(e){
             var x=(e.rest&&e.dur===4)?mx+1.0*sp+inner/2:mx+1.0*sp+inner*(e.b+0.5)/4;
-            items.push(e.rest?{x:x,st:st,rest:true,dur:e.dur}:{x:x,st:st,d:e.d,dur:e.dur,hit:inner/4,label:show?nameOf(e.d):"",lsize:ls});
+            items.push(e.rest?{x:x,st:st,rest:true,dur:e.dur}:{x:x,st:st,d:e.d,dur:e.dur,hit:inner/4,cls:fCls(e),label:show?nameOf(e.d):"",lsize:ls});
           });
         });
       }
@@ -1106,6 +1202,91 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
     g.classList.add("lit"); clearTimeout(g._t); g._t=setTimeout(function(){g.classList.remove("lit");},600);
   }
   sheetHost.addEventListener("click",hearFrom);
+
+  /* ---------- folha de leitura: teclado MIDI ---------- */
+  /* Com o teclado ligado, a folha acompanha a leitura no seu tempo. Cada ataque é o conjunto de notas que começam
+     juntas (nas duas pautas, com as mãos juntas): ele se completa quando você aperta todas, em qualquer ordem, e a folha
+     avança. Uma tecla fora do ataque é erro: o ataque fica vermelho e espera as notas certas.
+     dt: tempo entre completar um ataque e completar o seguinte; o primeiro não tem. mps: compassos por linha. */
+  var F={on:[],idx:0,got:{},err:false,res:[],dt:[],lastT:null,done:false,mps:1};
+  var sheetFb=document.getElementById("sheet-feedback"), sheetRes=document.getElementById("sheet-result");
+  function fFeedback(t,cls){sheetFb.textContent=t||"";sheetFb.className="feedback"+(cls?" "+cls:"");}
+  function fBuild(){
+    var by={};
+    sheet.measures.forEach(function(meas,m){
+      sheet.staves.forEach(function(st){
+        (meas[st]||[]).forEach(function(e){
+          if(e.rest) return;
+          var k=m*4+e.b; (by[k]||(by[k]={m:m,evs:[]})).evs.push({d:e.d,st:st,e:e});
+        });
+      });
+    });
+    F.on=Object.keys(by).map(Number).sort(function(a,b){return a-b;}).map(function(k){return by[k];});
+    F.on.forEach(function(o,i){o.evs.forEach(function(x){x.e.oi=i;});});   // oi: o ataque de cada nota, para o desenho
+    F.idx=0; F.got={}; F.err=false; F.res=[]; F.dt=[]; F.lastT=null; F.done=false;
+    sheetRes.hidden=true; sheetMidiUI();
+  }
+  function fCls(e){
+    if(!midiOn()||e.oi==null) return "";
+    if(e.oi<F.idx) return F.res[e.oi]||"";
+    return e.oi===F.idx&&!F.done?(F.err?"bad":"cur"):"";
+  }
+  // O que a folha pede agora, com a mão quando há duas pautas: "Sol na mão direita e Dó na mão esquerda".
+  function fWant(o){
+    var two=sheet.staves.length>1;
+    return cList(o.evs.map(function(x){return nameOf(x.d)+(two?(x.st==="sol"?" na mão direita":" na mão esquerda"):"");}));
+  }
+  function fKey(k,t){
+    if(!midiOn()||F.done||F.idx>=F.on.length) return;
+    var o=F.on[F.idx], want=o.evs.map(function(x){return dToMidi(x.d);});
+    if(want.indexOf(k)<0){
+      var kd=midiToD(k), near=o.evs.filter(function(x){return kd!=null&&letterOf(kd)===letterOf(x.d);})[0]||o.evs[0];
+      F.err=true;
+      fFeedback((o.evs.length>1?"Eram ":"Era ")+fWant(o)+". Você tocou "+midiDesc(k,near.d)+".","bad");
+      renderSheet(); return;
+    }
+    F.got[k]=1;
+    if(!want.every(function(w){return F.got[w];})) return;
+    var dt=F.lastT!=null?t-F.lastT:null; if(dt!=null&&dt>10000) dt=null;   // parada longa: o tempo não conta
+    F.res[F.idx]=F.err?"bad":"ok"; F.dt[F.idx]=dt;
+    F.lastT=t; F.idx++; F.got={}; F.err=false;
+    fFeedback("");
+    if(F.idx>=F.on.length){F.done=true;renderSheet();fResult();return;}
+    renderSheet();
+    // Ao passar para outra linha, rola a folha para ela ficar à vista.
+    var sy=Math.floor(F.on[F.idx].m/F.mps), el=sheetHost.children[sy];
+    if(sy!==Math.floor(F.on[F.idx-1].m/F.mps)&&el) el.scrollIntoView({block:"nearest",behavior:"smooth"});
+  }
+  function fResult(){
+    var n=F.on.length, ok=F.res.filter(function(r){return r==="ok";}).length, per={}, all=[], lines=[];
+    function mean(a){return a.reduce(function(s,x){return s+x;},0)/a.length;}
+    F.dt.forEach(function(dt,i){if(dt==null)return;all.push(dt);var m=F.on[i].m;(per[m]||(per[m]=[])).push(dt);});
+    var html='<p class="r-score">'+ok+' de '+n+' certas de primeira</p>';
+    if(all.length){
+      var slowM=-1, slowV=0;
+      Object.keys(per).forEach(function(m){var v=mean(per[m]);if(v>slowV){slowV=v;slowM=+m;}});
+      lines.push("Tempo médio por nota: "+fmt1(mean(all)/1000)+" s. Compasso mais demorado: "+(slowM+1)+", com "+fmt1(slowV/1000)+" s por nota.");
+    }
+    lines.push(ok<n?"As notas em vermelho tiveram erro. Toque a folha de novo, mais devagar, antes de passar para outra."
+      :all.length&&mean(all)>1500?"Sem erros. Agora tente manter a mesma demora em todas as notas, como um pulso."
+      :"Sem erros e sem parar: passe para uma folha nova.");
+    lines.forEach(function(s){html+='<p class="r-line">'+s+'</p>';});
+    html+='<p class="r-legend"><span class="dot ok"></span>certa de primeira &nbsp; <span class="dot bad"></span>com erro. O tempo de cada nota vai de completar a anterior até completar ela; a primeira não conta.</p>'
+      +'<div class="r-actions"><button type="button" class="btn" id="sheet-again">Tocar de novo</button></div>';
+    sheetRes.innerHTML=html; sheetRes.hidden=false;
+    sheetRes.scrollIntoView({block:"nearest",behavior:"smooth"});
+  }
+  sheetRes.addEventListener("click",function(e){
+    if(e.target.id!=="sheet-again") return;
+    fBuild(); renderSheet(); sheetHost.scrollIntoView({block:"start",behavior:"smooth"});
+  });
+  // Mostra a linha de avisos da folha só com o teclado ligado.
+  function sheetMidiUI(){
+    var on=midiOn();
+    sheetFb.hidden=!on;
+    if(on&&!F.done&&F.idx===0&&!F.err) fFeedback("Toque a nota destacada. A folha avança quando você acerta.","");
+    sheetIntro();
+  }
 
   /* ---------- mapa ---------- */
   var mapHost=document.getElementById("map-host");
@@ -1168,7 +1349,13 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
     document.querySelectorAll("[data-hands]").forEach(function(b){b.setAttribute("aria-checked",String(b.dataset.hands===settings.hands));});
     document.getElementById("hands-seg").hidden=!isGrand();
     document.getElementById("h1-clef").textContent=MODE_NAMES[settings.clef];
-    document.getElementById("sheet-intro").textContent=isGrand()
+    sheetIntro();
+  }
+  function sheetIntro(){
+    document.getElementById("sheet-intro").textContent=midiOn()
+      ? (isGrand()?"Pauta de cima: mão direita. Pauta de baixo: mão esquerda. ":"")+"Toque as notas no teclado, na altura escrita: a folha avança quando você acerta"
+        +(isGrand()?", e as notas que começam juntas nas duas pautas vão juntas":"")+". Os erros ficam em vermelho. Na tela, toque numa nota para ouvir."
+      : isGrand()
       ? "Pauta de cima: mão direita. Pauta de baixo: mão esquerda. Toque num pulso constante, quatro tempos por compasso, sem parar para corrigir, e depois confira com “Mostrar nomes”. Na tela, toque numa nota para ouvir."
       : "Leia as notas em voz alta num pulso constante, quatro por compasso, sem parar para corrigir. Depois confira com “Mostrar nomes”. Toque numa nota para ouvir.";
   }
@@ -1212,7 +1399,8 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
   CELLS.forEach(function(c){c.rest=c.ev.some(function(e){return !!e[1];});});
   var R_COUNTS=[2,4,8,12,16];
 
-  settings.r=Object.assign({meter:4,bpm:70,figs:LV1.slice(),metro:"sempre",latency:0,calibrated:false,cursor:false,hands:"uma",measures:4,view:"pagina",mode:"bater",start:"toque",tapSound:true},settings.r||{});
+  // latency/calibrated: atraso do toque na tela; latMidi/calMidi: do teclado MIDI, que é bem menor.
+  settings.r=Object.assign({meter:4,bpm:70,figs:LV1.slice(),metro:"sempre",latency:0,calibrated:false,latMidi:0,calMidi:false,cursor:false,hands:"uma",measures:4,view:"pagina",mode:"bater",start:"toque",tapSound:true},settings.r||{});
   (function(r){
     if([2,3,4].indexOf(r.meter)<0) r.meter=4;
     r.bpm=clamp(Math.round(+r.bpm||70),40,160);
@@ -1221,6 +1409,8 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
     if(r.figs.indexOf("seminima")<0) r.figs.push("seminima");
     if(r.metro!=="contagem") r.metro="sempre";
     r.latency=clamp(Math.round(+r.latency||0),-150,400);
+    r.latMidi=clamp(Math.round(+r.latMidi||0),-150,400);
+    r.calMidi=r.calMidi===true;
     r.cursor=r.cursor===true;
     if(r.hands!=="duas") r.hands="uma";
     r.measures=R_COUNTS.indexOf(+r.measures)>=0?+r.measures:4;
@@ -1231,7 +1421,10 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
   })(settings.r);
 
   // anchor: instante do primeiro toque, que marca o início do exercício e serve de referência para os outros.
-  var R={ex:null,state:"idle",kind:"ex",auto:false,taps:[],active:{},result:null,msg:"",startPerf:0,countPerf:0,anchor:null,beatMs:0,totalMs:0,meter:4,bus:null,raf:0,L:null,wake:null};
+  // midi: o teclado MIDI estava ligado ao começar, então vale a calibração dele.
+  var R={ex:null,state:"idle",kind:"ex",auto:false,midi:false,taps:[],active:{},result:null,msg:"",startPerf:0,countPerf:0,anchor:null,beatMs:0,totalMs:0,meter:4,bus:null,raf:0,L:null,wake:null};
+  function rCalOf(midi){return midi?settings.r.calMidi:settings.r.calibrated;}
+  function rLatOf(midi){return rCalOf(midi)?(midi?settings.r.latMidi:settings.r.latency):0;}
   var rHost=document.getElementById("r-host"), rGo=document.getElementById("r-go"), rResult=document.getElementById("r-result");
   var rNum=document.getElementById("r-num"), rLbl=document.getElementById("r-lbl");
   var rPads={R:document.getElementById("r-pad"),L:document.getElementById("r-pad-l")};
@@ -1470,7 +1663,7 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
   // Metrônomo do exercício: começa no primeiro toque. A calibração adianta os cliques para soarem junto com o seu toque.
   function rScheduleFrom(anchor){
     var ctx=actx; if(!ctx||!R.bus) return;
-    var lat=settings.r.calibrated?settings.r.latency:0, n=R.ex.measures.length*R.meter;
+    var lat=rLatOf(R.midi), n=R.ex.measures.length*R.meter;
     for(var k=1;k<n;k++){
       var t=rCtxAt(ctx,anchor-lat+k*R.beatMs);
       if(t>ctx.currentTime+0.005) rClick(ctx,R.bus,t,k%R.meter===0);
@@ -1528,10 +1721,15 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
     document.getElementById("r-calib").disabled=run;
     rPads.L.hidden=!two;
     rPads.R.classList.toggle("live",R.state==="run"); rPads.L.classList.toggle("live",R.state==="run");
-    var hold=rHold();
+    var hold=rHold(), midi=midiOn();
     document.getElementById("r-pad-r-title").textContent=two?"Mão direita":(hold?"Segure aqui":"Toque aqui");
-    document.getElementById("r-pad-r-sub").textContent=two?"ritmo · tecla J":(hold?"ou segure a barra de espaço":"ou use a barra de espaço");
-    document.getElementById("r-hint").textContent=two?(hold?"No computador: segure F para a mão esquerda e J para a direita. Esc para parar.":"No computador: F para a mão esquerda e J para a direita. Esc para parar.")
+    document.getElementById("r-pad-r-sub").textContent=midi?(two?"ritmo · do Dó central para cima":(hold?"ou segure uma tecla do piano":"ou uma tecla do piano"))
+      :two?"ritmo · tecla J":(hold?"ou segure a barra de espaço":"ou use a barra de espaço");
+    document.getElementById("r-pad-l-sub").textContent=midi?"pulso · abaixo do Dó central":"pulso · tecla F";
+    document.getElementById("r-hint").textContent=midi
+      ?"Com o teclado MIDI, qualquer tecla vale como toque"+(two?": abaixo do Dó central é a mão esquerda; do Dó central para cima, a direita.":".")
+        +(hold?" Segure a tecla pelo tempo da nota.":"")+" O app não toca o som do toque, porque o piano já soa."
+      :two?(hold?"No computador: segure F para a mão esquerda e J para a direita. Esc para parar.":"No computador: F para a mão esquerda e J para a direita. Esc para parar.")
       :(hold?"No computador, segure a barra de espaço. Esc para parar.":"No computador, toque com a barra de espaço. Esc para parar.");
     rGo.textContent=run?"Parar":(R.result?"Tocar de novo":"Começar");
     var auto=settings.r.start==="contagem";
@@ -1547,7 +1745,7 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
     if(!AC){R.msg="Este navegador não consegue tocar o metrônomo.";rUI();return;}
     actx=actx||new AC();
     var ctx=actx;
-    R.state="starting"; R.kind=kind; R.msg="";
+    R.state="starting"; R.kind=kind; R.msg=""; R.midi=midiOn();
     if(kind==="ex"){R.result=null;rResult.hidden=true;rDraw();}
     rUI();
     Promise.resolve(ctx.state==="suspended"?ctx.resume():null).then(function(){
@@ -1592,7 +1790,8 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
     // Toques durante a contagem não contam. No início pelo 1º toque, o primeiro depois dela (ou até meio tempo antes) começa o exercício.
     if(R.kind!=="cal"&&t<R.startPerf-0.5*R.beatMs){R.active[id]={h:h,ignored:true};return;}
     if(R.anchor==null){R.anchor=t;if(settings.r.metro==="sempre")rScheduleFrom(t);}
-    var press={t:t,h:h,up:null,voice:rTapSound(h)}; R.taps.push(press); R.active[id]=press;
+    // Tecla do piano (id "m…"): o piano já soa, então o app não toca o som do toque.
+    var press={t:t,h:h,up:null,voice:id.charAt(0)==="m"?null:rTapSound(h)}; R.taps.push(press); R.active[id]=press;
   }
   function rUp(ts,id){
     var p=R.active[id]; if(!p) return;
@@ -1678,7 +1877,7 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
   function rEvaluate(){
     var two=rTwo(), res={two:two,hold:rHold(),auto:R.auto,hands:{},cls:{},insights:[]};
     // No início automático o relógio é o do metrônomo, então o atraso calibrado do aparelho é descontado dos toques.
-    var base=R.anchor+(R.auto&&settings.r.calibrated?settings.r.latency:0);
+    var base=R.anchor+(R.auto?rLatOf(R.midi):0);
     (two?["R","L"]:["R"]).forEach(function(h){
       var taps=R.taps.filter(function(x){return x.h===h;}).map(function(x){return {t:x.t-base,up:x.up==null?null:x.up-base};})
         .filter(function(x){return x.t>-Math.min(0.5*R.beatMs,300)&&x.t<R.totalMs+300;}).sort(function(a,b){return a.t-b.t;});
@@ -1738,16 +1937,19 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
     else tip=res.hold?"Repita este exercício até todas as notas e barras ficarem verdes.":"Repita este exercício até todas as notas ficarem verdes.";
     lines.push(tip);
     lines.filter(Boolean).forEach(function(s){html+='<p class="r-line">'+s+'</p>';});
-    html+='<p class="r-legend">'+(res.auto?'O exercício começou logo após a contagem'+(settings.r.calibrated?', com o atraso calibrado descontado dos toques. ':'. Calibre o atraso deste aparelho para a avaliação ficar justa. ')
+    html+='<p class="r-legend">'+(res.auto?'O exercício começou logo após a contagem'+(rCalOf(R.midi)?', com o atraso calibrado descontado dos toques. ':(R.midi?'. Calibre o atraso do teclado MIDI para a avaliação ficar justa. ':'. Calibre o atraso deste aparelho para a avaliação ficar justa. '))
       :'O seu primeiro toque é a referência, por isso a primeira nota sempre fica verde. ')+'Os traços embaixo de cada linha mostram onde você tocou: à esquerda da nota é adiantado, à direita é atrasado.'
       +(res.hold?' A barra colorida é quanto você segurou; a faixa clara atrás dela é a duração escrita.':'')+'</p>';
     rResult.innerHTML=html; rResult.hidden=false;
   }
+  // A calibração mostrada e feita é a da entrada em uso: o teclado MIDI, se estiver ligado, ou o toque na tela.
   function rCalText(){
-    var r=settings.r;
-    document.getElementById("r-calib-txt").textContent=r.calibrated
-      ?"Compensação de atraso: "+r.latency+" ms. Com início logo após a contagem, ela é descontada dos seus toques; com início no seu 1º toque, ela adianta o metrônomo."
-      :"Sem calibração. Calibre uma vez neste aparelho se for usar o início logo após a contagem, ou se o metrônomo parecer atrasado em relação aos seus toques.";
+    var r=settings.r, midi=midiOn(), how="Com início logo após a contagem, ela é descontada dos seus toques; com início no seu 1º toque, ela adianta o metrônomo.";
+    document.getElementById("r-calib-txt").textContent=midi
+      ?(r.calMidi?"Compensação de atraso do teclado MIDI: "+r.latMidi+" ms. "+how
+        :"Teclado MIDI sem calibração. O atraso dele é bem menor que o do toque na tela: calibre uma vez tocando uma tecla junto com os cliques.")
+      :(r.calibrated?"Compensação de atraso: "+r.latency+" ms. "+how
+        :"Sem calibração. Calibre uma vez neste aparelho se for usar o início logo após a contagem, ou se o metrônomo parecer atrasado em relação aos seus toques.");
   }
   // Calibração: 4 cliques de preparação e 12 para medir. O atraso é a mediana da diferença entre toque e clique.
   function rCalFinish(){
@@ -1758,8 +1960,10 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
       var d=rel-k*R.beatMs; if(Math.abs(d)<0.35*R.beatMs) offs.push(d);
     });
     if(offs.length<6){R.msg="Não deu para medir. Toque junto com cada clique até o fim e tente de novo.";return;}
-    settings.r.latency=clamp(Math.round(median(offs)),-150,400); settings.r.calibrated=true; saveSettings(); rCalText();
-    R.msg="Calibração feita: "+settings.r.latency+" ms. Agora aperte “"+(R.result?"Tocar de novo":"Começar")+"”.";
+    var lat=clamp(Math.round(median(offs)),-150,400);
+    if(R.midi){settings.r.latMidi=lat;settings.r.calMidi=true;} else {settings.r.latency=lat;settings.r.calibrated=true;}
+    saveSettings(); rCalText();
+    R.msg="Calibração "+(R.midi?"do teclado MIDI ":"")+"feita: "+lat+" ms. Agora aperte “"+(R.result?"Tocar de novo":"Começar")+"”.";
   }
 
   function tempoName(b){return b<60?"Largo":b<66?"Larghetto":b<76?"Adagio":b<108?"Andante":b<120?"Moderato":b<156?"Allegro":"Vivace";}
@@ -2182,46 +2386,6 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
   }
 
   /* ---------- acordes: teclado MIDI ---------- */
-  // held: notas apertadas agora (nota MIDI → instante). setT: quando o conjunto atual de notas se formou.
-  // dirty: houve nota nova desde o último acorde reconhecido; segurar o acorde anterior não conta como erro.
-  var MIDI={access:null,state:"off",names:[],held:{},setT:0,dirty:false};
-  function cMidiConnect(){
-    if(!navigator.requestMIDIAccess){MIDI.state="unsupported";cMidiUI();return;}
-    MIDI.state="wait"; cMidiUI();
-    navigator.requestMIDIAccess().then(function(acc){
-      MIDI.access=acc; acc.onstatechange=cMidiBind; cMidiBind();
-    },function(){MIDI.state="denied";cMidiUI();});
-  }
-  function cMidiBind(){
-    var names=[];
-    MIDI.access.inputs.forEach(function(inp){
-      inp.onmidimessage=cMidiMsg;
-      if(inp.state!=="disconnected") names.push(inp.name||"Teclado MIDI");
-    });
-    MIDI.names=names; MIDI.state=names.length?"on":"none";
-    if(!names.length){
-      MIDI.held={};
-      if(C.state!=="idle"&&C.mode==="midi") cStop("O teclado foi desconectado. Ligue o cabo e comece de novo.");
-    }
-    cRender();
-  }
-  // Já com permissão dada antes, conecta sozinho ao abrir o app.
-  function cMidiAuto(){
-    if(!navigator.requestMIDIAccess){MIDI.state="unsupported";return;}
-    try{
-      if(navigator.permissions) navigator.permissions.query({name:"midi"}).then(function(p){if(p.state==="granted")cMidiConnect();}).catch(function(){});
-    }catch(e){}
-  }
-  function cMidiMsg(e){
-    var d=e.data; if(!d||d.length<3) return;
-    var st=d[0]&0xF0, nt=d[1], on=st===0x90&&d[2]>0;
-    if(!on&&st!==0x80&&st!==0x90) return;
-    var t=rStamp(e.timeStamp);
-    if(on){if(MIDI.held[nt])return;MIDI.held[nt]=t;MIDI.dirty=true;}
-    else {if(!MIDI.held[nt])return;delete MIDI.held[nt];}
-    MIDI.setT=t;
-    cOnNotes();
-  }
   function cHeld(){return Object.keys(MIDI.held).map(Number).sort(function(a,b){return a-b;});}
   // Certo: três notas por mão, de baixo para cima na ordem da inversão, juntas (dentro de uma oitava).
   function cMatches(notes,it){
@@ -2512,16 +2676,6 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
     else if(settings.c.inv||it.deg) s+=" · "+CINV[0];
     return s;
   }
-  function cMidiUI(){
-    var s=MIDI.state, h;
-    if(s==="on") h='<span class="dot ok"></span>'+cEsc(MIDI.names.join(", "));
-    else if(s==="wait") h='Procurando o teclado…';
-    else if(s==="none") h='Nenhum teclado MIDI encontrado. Ligue o cabo USB.';
-    else if(s==="denied") h='Sem permissão para o teclado. Libere “Dispositivos MIDI” nas permissões do site e <button type="button" class="txtbtn" id="c-midi-btn">tente de novo</button>.';
-    else if(s==="unsupported") h=window.isSecureContext===false?'Para usar o teclado MIDI, abra o app pelo endereço https.':'Este navegador não recebe teclado MIDI. No Android, use o Chrome.';
-    else h='<button type="button" class="txtbtn" id="c-midi-btn">Conectar teclado MIDI</button>';
-    var el=document.getElementById("c-midi"); if(el._h!==h){el._h=h;el.innerHTML=h;}
-  }
   function cRender(){
     var c=settings.c, run=C.state!=="idle", n=C.items.length, it=cCurItem(); if(!it) return;
     var counting=run&&C.pace==="metro"&&C.slot<0, i=counting?0:Math.min(C.idx,n-1), nx=C.items[i+1];
@@ -2550,7 +2704,6 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
         :(run?"":"Para começar, toque o primeiro acorde ou aperte “Começar”. ")+"O próximo acorde aparece assim que o app reconhece o atual. Se não lembrar, aperte “Não lembro” (ou a barra de espaço) para ver o desenho. Esc para parar.")
       :(metro?"Sem teclado conectado, o app não confere: o desenho aparece na metade de cada acorde para você comparar com o que tocou."
         :"Sem teclado conectado: toque o acorde, aperte “Conferir” para ver o desenho e marque se acertou. No teclado do computador ou num pedal de virar página, → confere e marca acerto, ← marca erro.");
-    cMidiUI();
   }
 
   /* ---------- acordes: ajustes e desempenho ---------- */
@@ -2670,7 +2823,6 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
   document.getElementById("c-check").addEventListener("click",cCheck);
   document.getElementById("c-yes").addEventListener("click",function(){cMark(true);});
   document.getElementById("c-no").addEventListener("click",function(){cMark(false);});
-  document.getElementById("c-midi").addEventListener("click",function(e){if(e.target.id==="c-midi-btn")cMidiConnect();});
   // Teclado do computador ou pedal de virar página (que manda setas ou Page Up/Down).
   document.addEventListener("keydown",function(e){
     if(settings.tab!=="acordes"||e.metaKey||e.ctrlKey||e.altKey) return;
@@ -2732,7 +2884,7 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
   rGenerate(); rRenderControls(); rCalText(); rUI();
   cRenderControls(); cRenderStats(); cRenderWeak(); cRenderReset(false);
   applyTabs();
-  newDrillLine(); newSheet(); rDraw(); cNew(); cMidiAuto();
+  newDrillLine(); newSheet(); rDraw(); cNew(); midiUI(); midiAuto();
 })();
 </script>
 <script>
