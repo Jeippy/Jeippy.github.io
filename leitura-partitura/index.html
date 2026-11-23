@@ -115,6 +115,9 @@ h2{font-family:var(--font-display);font-weight:600;font-size:22px;line-height:1.
 .weak ol{list-style:none;padding:0;margin:12px 0 0}
 .weak li{display:grid;grid-template-columns:2.8em minmax(0,1fr) auto;gap:12px;align-items:baseline;padding:9px 0;border-top:1px solid var(--rule)}
 .weak li.empty{display:block;color:var(--muted);font-size:14px}
+.weak li.tr{grid-template-columns:minmax(0,1fr) auto}
+.weak li.tr .wn{font-size:19px}
+.weak .h2b{margin-top:30px}
 .wn{font-family:var(--font-display);font-size:22px;font-weight:600}
 .wp{color:var(--muted);font-size:14px}
 .wr{font-size:14px;color:var(--bad);font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums}
@@ -489,6 +492,14 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
           <button type="button" role="radio" id="cs-progressao" data-cseq="progressao" aria-checked="false">I–IV–V–I</button>
         </div>
       </div>
+      <div class="field" id="f-cdraw">
+        <span class="flabel" id="lbl-cdraw">Sorteio</span>
+        <div class="seg" role="radiogroup" aria-labelledby="lbl-cdraw">
+          <button type="button" role="radio" id="cd-peso" data-cdraw="peso" aria-checked="true">Pelo desempenho</button>
+          <button type="button" role="radio" id="cd-todas" data-cdraw="todas" aria-checked="false">Todas as trocas</button>
+          <button type="button" role="radio" id="cd-dificeis" data-cdraw="dificeis" aria-checked="false">Trocas difíceis</button>
+        </div>
+      </div>
       <div class="field">
         <span class="flabel" id="lbl-cpace">Troca</span>
         <div class="seg" role="radiogroup" aria-labelledby="lbl-cpace">
@@ -577,8 +588,11 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
       </section>
       <section class="weak" aria-labelledby="h-cweak">
         <h2 id="h-cweak">Acordes que pedem mais treino</h2>
-        <p class="note">Na sequência sorteada, os acordes que você erra ou demora mais aparecem com mais frequência.</p>
+        <p class="note">No sorteio pelo desempenho, os acordes que você erra ou demora mais aparecem com mais frequência.</p>
         <ol id="c-weak"></ol>
+        <h2 class="h2b" id="h-cweakp">Trocas que pedem mais treino</h2>
+        <p class="note">No sorteio “Trocas difíceis”, as trocas em que você erra ou demora mais contam como mais difíceis.</p>
+        <ol id="c-weak-pairs" aria-labelledby="h-cweakp"></ol>
       </section>
     </div>
   </section>
@@ -1890,7 +1904,7 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
   var PC_SHARP=[[0,0],[0,1],[1,0],[1,1],[2,0],[3,0],[3,1],[4,0],[4,1],[5,0],[5,1],[6,0]];
   var PC_FLAT=[[0,0],[1,-1],[1,0],[2,-1],[2,0],[3,0],[4,-1],[4,0],[5,-1],[5,0],[6,-1],[6,0]];
 
-  settings.c=Object.assign({groups:["bbb"],hands:"direita",inv:false,seq:"sorteada",pace:"livre",beats:4,bpm:60,count:12,shape:false},settings.c||{});
+  settings.c=Object.assign({groups:["bbb"],hands:"direita",inv:false,seq:"sorteada",draw:"peso",pace:"livre",beats:4,bpm:60,count:12,shape:false},settings.c||{});
   (function(c){
     if(!Array.isArray(c.groups)) c.groups=[];
     c.groups=c.groups.filter(function(id){return CGROUPS.some(function(g){return g.id===id;});});
@@ -1898,6 +1912,7 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
     if(["direita","esquerda","duas"].indexOf(c.hands)<0) c.hands="direita";
     c.inv=c.inv===true;
     if(["sorteada","ciclo","progressao"].indexOf(c.seq)<0) c.seq="sorteada";
+    if(["peso","todas","dificeis"].indexOf(c.draw)<0) c.draw="peso";
     if(c.pace!=="metro") c.pace="livre";
     c.beats=[4,2,1].indexOf(+c.beats)>=0?+c.beats:4;
     c.bpm=clamp(Math.round(+c.bpm||60),30,160);
@@ -1906,9 +1921,13 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
   })(settings.c);
 
   // per["altura:inversão"] = {n, w, r, t}, como nas notas; t guarda os últimos tempos de troca.
-  function cBlank(){return {answered:0,correct:0,timeMs:0,timed:0,per:{}};}
+  // pairs["de>para"] = o mesmo para cada troca, com as chaves de per. rounds["sorteio|acordes"] = onde parou a volta
+  // dos sorteios “Todas as trocas” e “Trocas difíceis”, separada por conjunto de acordes.
+  function cBlank(){return {answered:0,correct:0,timeMs:0,timed:0,per:{},pairs:{},rounds:{}};}
   var cstats=Object.assign(cBlank(),store.get("lcs-chords",{}));
   if(!cstats.per||typeof cstats.per!=="object") cstats.per={};
+  if(!cstats.pairs||typeof cstats.pairs!=="object") cstats.pairs={};
+  if(!cstats.rounds||typeof cstats.rounds!=="object") cstats.rounds={};
   function cSave(){store.set("lcs-chords",cstats);}
 
   function accSym(a){return a<0?"♭":a>0?"♯":"";}
@@ -1939,14 +1958,19 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
     return all.length>=5?median(all):0;
   }
   function cLimit(){return clamp(4*(cTypical()||3000),8000,20000);}
-  function cRecord(it,ok,dt){
-    cstats.answered++; if(ok) cstats.correct++;
-    if(dt!=null){cstats.timeMs+=dt;cstats.timed++;}
-    var k=cKey(it), p=cstats.per[k]||(cstats.per[k]={n:0,w:0});
+  function cBump(p,ok,dt){
     if(!p.r) p.r=[]; if(!p.t) p.t=[];
     p.n++; p.r.push(ok?0:1); if(p.r.length>RECENT) p.r.shift();
     if(!ok) p.w++;
     else if(dt!=null){p.t.push(Math.round(dt));if(p.t.length>TIMES)p.t.shift();}
+  }
+  // prev: o acorde anterior na série. Com ele, o resultado também entra na troca de prev para it.
+  function cRecord(it,ok,dt,prev){
+    cstats.answered++; if(ok) cstats.correct++;
+    if(dt!=null){cstats.timeMs+=dt;cstats.timed++;}
+    var k=cKey(it);
+    cBump(cstats.per[k]||(cstats.per[k]={n:0,w:0}),ok,dt);
+    if(prev){var pk=cKey(prev)+">"+k;cBump(cstats.pairs[pk]||(cstats.pairs[pk]={n:0,w:0}),ok,dt);}
     cSave();
   }
 
@@ -1965,8 +1989,158 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
     }
     return best;
   }
+  // Os acordes escolhidos, nas posições que valem (só a fundamental, ou as três).
+  function cSetItems(){
+    var invs=settings.c.inv?[0,1,2]:[0], out=[];
+    cRoots().forEach(function(ri){invs.forEach(function(v){out.push(cItem(CROOTS[ri][0],CROOTS[ri][1],v));});});
+    return out;
+  }
+  function cRoundKey(){return settings.c.draw+"|"+cRoots().join(".")+(settings.c.inv?"i":"f");}
+  // Todas as trocas entre acordes de fundamentais diferentes, como "de>para".
+  function cAllPairs(items){
+    var out=[];
+    items.forEach(function(a){items.forEach(function(b){if(a.pc!==b.pc)out.push(cKey(a)+">"+cKey(b));});});
+    return out;
+  }
+  // Dificuldade de uma troca pelo movimento da mão: os semitons que os três dedos andam (para a oitava mais perto),
+  // mais 3 por tecla que troca entre branca e preta e mais 3 se a inversão muda, porque a abertura dos dedos muda.
+  var C_BLACK={1:1,3:1,6:1,8:1,10:1};
+  function cPitches(it){var v=cVoice(it), p0=v[0].pc, p1=p0+(v[1].pc-v[0].pc+12)%12;return [p0,p1,p1+(v[2].pc-v[1].pc+12)%12];}
+  function cMove(a,b){
+    var A=cPitches(a), B=cPitches(b), best=-1, cor=0, k, i, d;
+    for(k=-1;k<=1;k++){d=0;for(i=0;i<3;i++)d+=Math.abs(B[i]+12*k-A[i]);if(best<0||d<best)best=d;}
+    for(i=0;i<3;i++) if(!C_BLACK[A[i]%12]!==!C_BLACK[B[i]%12]) cor++;
+    return best+3*cor+(a.inv!==b.inv?3:0);
+  }
+  // Depois de a troca sair duas vezes, a nota do movimento é multiplicada pela sua demora nela em relação ao seu tempo
+  // típico (de 0,5 a 2 vezes) e cresce com os erros recentes.
+  function cHardness(a,b,ref){
+    var s=cMove(a,b), p=cstats.pairs[cKey(a)+">"+cKey(b)];
+    if(!p||p.n<FRESH_N) return s;
+    var r=p.r&&p.r.length?p.r:[], err=r.length?r.filter(function(x){return x===1;}).length/r.length:0;
+    var med=p.t&&p.t.length?median(p.t):0;
+    return s*(med&&ref?clamp(med/ref,0.5,2):1)*(1+err);
+  }
+
+  /* “Todas as trocas”: cada troca entre os acordes escolhidos sai uma vez por volta (o que também faz cada acorde
+     sair o mesmo número de vezes). A volta continua de uma série para a outra: rounds guarda as trocas que faltam
+     (left), o último acorde tocado (last) e quantas voltas já se completaram (laps). Cada série começa nesse último
+     acorde, para a troca entre uma série e a seguinte também contar. */
+  // Caminho que passa uma vez por cada troca de left, começando em start (Hierholzer, com as saídas embaralhadas).
+  function cEuler(left,start){
+    var adj={}, st=[start], path=[];
+    shuffle(left.slice()).forEach(function(e){var p=e.split(">");(adj[p[0]]||(adj[p[0]]=[])).push(p[1]);});
+    while(st.length){var v=st[st.length-1];if(adj[v]&&adj[v].length)st.push(adj[v].pop());else path.push(st.pop());}
+    path.reverse();
+    // Só vale se usou cada troca uma vez, em sequência.
+    var cnt={}; left.forEach(function(e){cnt[e]=1;});
+    if(path.length!==left.length+1) return null;
+    for(var i=1;i<path.length;i++){var e=path[i-1]+">"+path[i];if(!cnt[e])return null;cnt[e]=0;}
+    return path;
+  }
+  function cGenAll(n,items){
+    var keys={}; items.forEach(function(it){keys[cKey(it)]=it;});
+    var all=cAllPairs(items), rk=cRoundKey(), st=cstats.rounds[rk], laps=st&&+st.laps||0;
+    var left=st&&Array.isArray(st.left)?st.left.filter(function(e){var p=e.split(">");return keys[p[0]]&&keys[p[1]]&&keys[p[0]].pc!==keys[p[1]].pc;}):all.slice();
+    if(!left.length) left=all.slice();
+    var cur=st&&keys[st.last]?st.last:cKey(items[Math.floor(Math.random()*items.length)]), seq=[cur];
+    while(seq.length<n){
+      var path=cEuler(left,cur);
+      if(!path){left=all.slice();path=cEuler(left,cur);}   // dados inconsistentes: recomeça a volta
+      var take=Math.min(path.length-1,n-seq.length), used={};
+      for(var i=1;i<=take;i++){used[path[i-1]+">"+path[i]]=1;seq.push(path[i]);}
+      left=left.filter(function(e){return !used[e];});
+      if(!left.length){laps++;left=all.slice();}
+      cur=seq[seq.length-1];
+    }
+    C.round={k:rk,draw:"todas",E:all.length,laps:st&&+st.laps||0,st:{left:left,last:cur,laps:laps}};
+    return seq.map(function(k){var it=keys[k];return cItem(it.L,it.a,it.inv);});
+  }
+
+  /* “Trocas difíceis”: cada acorde sai uma vez por volta, e cada troca é uma das difíceis. rounds guarda os acordes
+     que faltam na volta (left) e o último tocado (last). */
+  // Para não ficar previsível, cada acorde precisa de pelo menos 8 saídas (acordes de outra fundamental).
+  function cHardOk(){return (cRoots().length-1)*(settings.c.inv?3:1)>=8;}
+  // Trocas difíceis: o terço de cima (pelo menos 3) das saídas de cada acorde e também das chegadas a cada acorde,
+  // para todo acorde ter por onde chegar. Empates são sorteados. Devolve, para cada acorde, para onde ele pode ir.
+  function cHardExits(items,ref){
+    var ex={}, h={}, take=Math.max(3,Math.ceil((items.length-items.length/cRoots().length)/3));
+    items.forEach(function(a){var ka=cKey(a);ex[ka]={};h[ka]={};items.forEach(function(b){if(a.pc!==b.pc)h[ka][cKey(b)]=cHardness(a,b,ref);});});
+    function top(l){
+      return l.map(function(x){return {x:x,r:Math.random()};}).sort(function(p,q){return q.x.h-p.x.h||p.r-q.r;}).slice(0,take).map(function(p){return p.x;});
+    }
+    items.forEach(function(it){
+      var k=cKey(it), outs=[], ins=[];
+      Object.keys(h[k]).forEach(function(o){outs.push({a:k,b:o,h:h[k][o]});ins.push({a:o,b:k,h:h[o][k]});});
+      top(outs).concat(top(ins)).forEach(function(e){ex[e.a][e.b]=1;});
+    });
+    Object.keys(ex).forEach(function(k){ex[k]=Object.keys(ex[k]);});
+    return ex;
+  }
+  // Caminho que passa uma vez por cada acorde de left, só por trocas difíceis, saindo de cur (ou de qualquer um, sem
+  // cur). Busca em profundidade, indo primeiro para quem tem menos saídas para os que faltam; desiste após 20 mil passos.
+  function cHardPath(ex,cur,left){
+    var rest={}, path=[], steps=0;
+    left.forEach(function(k){rest[k]=1;});
+    function onward(k){return ex[k].filter(function(x){return rest[x];}).length;}
+    function go(from){
+      if(path.length===left.length) return true;
+      if(++steps>20000) return false;
+      var c=(from?ex[from]:left).filter(function(x){return rest[x];})
+        .map(function(k){return {k:k,v:onward(k)+Math.random()};}).sort(function(p,q){return p.v-q.v;});
+      for(var i=0;i<c.length&&steps<=20000;i++){
+        rest[c[i].k]=0; path.push(c[i].k);
+        if(go(c[i].k)) return true;
+        rest[c[i].k]=1; path.pop();
+      }
+      return false;
+    }
+    return go(cur)?path:null;
+  }
+  // Sem caminho assim: o primeiro passo, por trocas difíceis, do caminho mais curto até um acorde que falta.
+  function cHardBridge(ex,cur,left){
+    var inLeft={}, prev={}, q=[cur], seen={};
+    left.forEach(function(k){inLeft[k]=1;}); seen[cur]=1;
+    while(q.length){
+      var v=q.shift(), nb=shuffle(ex[v].slice());
+      for(var i=0;i<nb.length;i++){
+        var w=nb[i]; if(seen[w]) continue;
+        seen[w]=1; prev[w]=v;
+        if(inLeft[w]){while(prev[w]!==cur)w=prev[w];return w;}
+        q.push(w);
+      }
+    }
+    return ex[cur][Math.floor(Math.random()*ex[cur].length)];
+  }
+  function cGenHard(n,items){
+    var keys={}, all=items.map(function(it){var k=cKey(it);keys[k]=it;return k;});
+    var ex=cHardExits(items,cTypical()), rk=cRoundKey(), st=cstats.rounds[rk], laps=st&&+st.laps||0;
+    var left=st&&Array.isArray(st.left)?st.left.filter(function(k){return keys[k];}):[];
+    if(!left.length) left=all.slice();
+    var cur=st&&keys[st.last]?st.last:null, seq=[];
+    function add(k){
+      seq.push(k); cur=k;
+      var i=left.indexOf(k); if(i<0) return;
+      left.splice(i,1); if(!left.length){laps++;left=all.slice();}
+    }
+    while(seq.length<n){
+      var path=cHardPath(ex,cur,left);
+      if(path) path.slice(0,n-seq.length).forEach(add);
+      else add(cur?cHardBridge(ex,cur,left):left[Math.floor(Math.random()*left.length)]);   // repete um acorde no caminho
+    }
+    C.round={k:rk,draw:"dificeis",laps:st&&+st.laps||0,st:{left:left,last:cur,laps:laps}};
+    return seq.map(function(k){var it=keys[k];return cItem(it.L,it.a,it.inv);});
+  }
+  // Texto do andamento da volta de “Todas as trocas”.
+  function cRoundTxt(){
+    var items=cSetItems(), E=cAllPairs(items).length, st=cstats.rounds[cRoundKey()];
+    var left=st&&Array.isArray(st.left)?st.left.length:E, laps=st&&+st.laps||0;
+    return "Volta "+(laps+1)+": "+(E-left).toLocaleString("pt-BR")+" de "+E.toLocaleString("pt-BR")+" trocas.";
+  }
+
   function cGen(){
     var c=settings.c, roots=cRoots(), n=c.count, out=[], i;
+    C.round=null;
     if(c.seq==="progressao"){
       // I–IV–V–I em cada tom, com I na fundamental, IV na 2ª inversão e V na 1ª: a mão quase não sai do lugar.
       var order=[], last=null;
@@ -1986,10 +2160,13 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
         else {it=cItem(R0[0],R0[1],0);var b=60+it.pc;if(it.pc>6)b-=12;prev=[b,b+4,b+7];}
         out.push(it);
       }
+    } else if(c.draw==="todas"){
+      out=cGenAll(n,cSetItems());
+    } else if(c.draw==="dificeis"&&cHardOk()){
+      out=cGenHard(n,cSetItems());
     } else {
-      // Sorteada: os que você erra ou demora mais têm mais peso; nunca o mesmo acorde duas vezes seguidas.
-      var cands=[], invs=c.inv?[0,1,2]:[0], ref=cTypical();
-      roots.forEach(function(ri){invs.forEach(function(v){cands.push(cItem(CROOTS[ri][0],CROOTS[ri][1],v));});});
+      // Pelo desempenho: os que você erra ou demora mais têm mais peso; nunca o mesmo acorde duas vezes seguidas.
+      var cands=cSetItems(), ref=cTypical();
       for(i=0;i<n;i++){
         var pv=out[i-1], recent=out.slice(Math.max(0,i-4));
         out.push(weighted(cands,cands.map(function(cd){
@@ -2138,7 +2315,7 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
     // Fecha os acordes cuja vez passou sem que você os tocasse.
     while(C.fin<n&&now>=cT(C.fin+1)){
       var r=C.res[C.fin];
-      if(C.mode==="midi"&&!r.st){r.st="bad";r.miss=true;cRecord(C.items[C.fin],false,null);}
+      if(C.mode==="midi"&&!r.st){r.st="bad";r.miss=true;cRecord(C.items[C.fin],false,null,C.items[C.fin-1]);}
       C.fin++;
     }
     if(C.mode==="midi") cMetroCheck();
@@ -2158,7 +2335,7 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
     clearTimeout(C.pend);
     var it=C.items[C.idx], r=C.res[C.idx], dt=null;
     if(C.idx>0&&!r.err&&C.lastT!=null&&!C.interrupted){dt=MIDI.setT-C.lastT;if(dt>cLimit())dt=null;}
-    r.st=r.err?"bad":"ok"; r.dt=dt; cRecord(it,!r.err,dt);
+    r.st=r.err?"bad":"ok"; r.dt=dt; cRecord(it,!r.err,dt,C.items[C.idx-1]);
     C.lastT=MIDI.setT; C.interrupted=false; MIDI.dirty=false;
     cFeedback(r.err?"Agora sim: "+cSlash(it)+".":"Certo"+(dt!=null?": troca em "+fmt1(dt/1000)+" s.":"."),r.err?"":"ok");
     cAdvance();
@@ -2175,7 +2352,7 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
       if(!cMatches(held,C.items[k])) continue;
       var off=MIDI.setT-cT(k), ms=Math.round(Math.abs(off));
       r.off=off; r.st=r.err?"bad":(ms<=cOkWin()?"ok":"near");
-      cRecord(C.items[k],!r.err,null); MIDI.dirty=false; clearTimeout(C.pend);
+      cRecord(C.items[k],!r.err,null,C.items[k-1]); MIDI.dirty=false; clearTimeout(C.pend);
       cFeedback(cSlash(C.items[k])+": "+(r.err?"certo depois de um erro":r.st==="ok"?"no tempo":ms+" ms "+(off>0?"atrasado":"adiantado"))+".",r.st==="ok"?"ok":(r.st==="bad"?"bad":""));
       cRenderKbd();
       return;
@@ -2208,7 +2385,7 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
     var it=C.items[C.idx], r=C.res[C.idx], dt=C.revealT-C.shownT;
     if(!ok||C.interrupted||dt>cLimit()) dt=null;
     // O tempo até conferir inclui o toque na tela: aparece no resultado da série, mas não entra na troca média.
-    r.st=ok?"ok":"bad"; r.dt=dt; cRecord(it,ok,null); C.interrupted=false;
+    r.st=ok?"ok":"bad"; r.dt=dt; cRecord(it,ok,null,C.items[C.idx-1]); C.interrupted=false;
     cFeedback(ok?"Certo"+(dt!=null?" em "+fmt1(dt/1000)+" s.":"."):"Anotado como erro: "+cSlash(it)+".",ok?"ok":"bad");
     cAdvance();
   }
@@ -2226,9 +2403,14 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
   }
   function cFinish(){
     C.state="idle"; cRelease();
-    var done={items:C.items,res:C.res,mode:C.mode,pace:C.pace,N:C.N,bpm:settings.c.bpm};
+    var done={items:C.items,res:C.res,mode:C.mode,pace:C.pace,N:C.N,bpm:settings.c.bpm}, rd=C.round;
+    // A volta dos sorteios “Todas as trocas” e “Trocas difíceis” só avança com a série terminada.
+    if(rd){
+      cstats.rounds[rd.k]=rd.st; cSave();
+      if(rd.draw==="todas") done.prog=(rd.st.laps>rd.laps?"Volta "+rd.st.laps+" completa: cada uma das "+rd.E.toLocaleString("pt-BR")+" trocas saiu uma vez. ":"")+cRoundTxt();
+    }
     C.items=cGen(); C.res=[]; C.idx=0; C.slot=-1; C.asked=false; C.revealed=settings.c.shape;
-    cFeedback(""); cShowResult(done); cRenderStats(); cRenderWeak(); cRender();
+    cFeedback(""); cShowResult(done); cRenderStats(); cRenderWeak(); cRenderControls(); cRender();
   }
   function cShowResult(d){
     var n=d.items.length, cnt={ok:0,near:0,bad:0}, lines=[], html, legend="";
@@ -2249,12 +2431,13 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
       var self=d.mode==="self", times=[], slow=-1;
       d.res.forEach(function(r,i){if(r.dt!=null){times.push(r.dt);if(slow<0||r.dt>d.res[slow].dt)slow=i;}});
       html='<p class="r-score">'+cnt.ok+' de '+n+' certos'+(self?' na sua conferência':'')+'</p>';
-      if(times.length) lines.push((self?"Tempo médio até conferir: ":"Troca média: ")+fmt1(mean(times)/1000)+" s. Mais "+(self?"demorado":"lenta")+": "+cSlash(d.items[slow])+", "+fmt1(d.res[slow].dt/1000)+" s.");
+      if(times.length) lines.push((self?"Tempo médio até conferir: ":"Troca média: ")+fmt1(mean(times)/1000)+" s. Mais "+(self?"demorado":"lenta")+": "+(self||!slow?"":cSlash(d.items[slow-1])+" → ")+cSlash(d.items[slow])+", "+fmt1(d.res[slow].dt/1000)+" s.");
       if(cnt.bad) lines.push("Os acordes em vermelho tiveram erro. Treine-os com o desenho sempre à vista e depois desligue de novo.");
       else if(times.length&&mean(times)>1500) lines.push("Continue no seu tempo até a troca média chegar perto de 1 s.");
       else if(!self) lines.push("Troca rápida e sem erros: passe para o metrônomo, com 4 tempos por acorde a 60 bpm.");
       legend=self?"":'<span class="dot ok"></span>certo &nbsp; <span class="dot bad"></span>com erro. A troca é o tempo entre completar um acorde e completar o seguinte; o primeiro acorde não conta.';
     }
+    if(d.prog) lines.push(d.prog);
     html+='<ol class="c-seq" aria-label="Acordes da série">'+d.items.map(function(it,i){var st=d.res[i]&&d.res[i].st;return '<li'+(st?' class="'+st+'"':'')+'>'+cSlash(it)+'</li>';}).join("")+'</ol>';
     lines.forEach(function(s){html+='<p class="r-line">'+s+'</p>';});
     if(legend) html+='<p class="r-legend">'+legend+'</p>';
@@ -2377,12 +2560,13 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
       var nm=g.roots.map(function(ri){return cNote(CROOTS[ri][0],CROOTS[ri][1]);});
       return '<button type="button" class="chip" role="checkbox" id="cg-'+g.id+'" data-cgroup="'+g.id+'" aria-checked="'+(c.groups.indexOf(g.id)>=0)+'">'+nm.join(" · ")+'</button>';
     }).join("");
-    [["chand","hands"],["cseq","seq"],["cpace","pace"]].forEach(function(p){
+    [["chand","hands"],["cseq","seq"],["cdraw","draw"],["cpace","pace"]].forEach(function(p){
       document.querySelectorAll("[data-"+p[0]+"]").forEach(function(b){b.setAttribute("aria-checked",String(b.dataset[p[0]]===c[p[1]]));});
     });
     document.querySelectorAll("[data-cinv]").forEach(function(b){b.setAttribute("aria-checked",String((b.dataset.cinv==="1")===c.inv));});
     document.querySelectorAll("[data-cbeats]").forEach(function(b){b.setAttribute("aria-checked",String(+b.dataset.cbeats===c.beats));});
     document.querySelectorAll("[data-ccount]").forEach(function(b){b.setAttribute("aria-checked",String(+b.dataset.ccount===c.count));});
+    document.getElementById("f-cdraw").hidden=c.seq!=="sorteada";
     document.getElementById("f-cbeats").hidden=document.getElementById("f-cbpm").hidden=c.pace!=="metro";
     document.getElementById("c-bpm").value=c.bpm;
     document.getElementById("c-bpm-val").textContent=c.bpm;
@@ -2391,9 +2575,15 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
     var sel=CGROUPS.filter(function(g){return c.groups.indexOf(g.id)>=0;});
     var d=(sel.length===CGROUPS.length?"Os 12 acordes maiores. ":"")+sel.map(function(g){return g.desc(g.roots.map(function(ri){return cNote(CROOTS[ri][0],CROOTS[ri][1]);}));}).join(" ");
     if(c.seq==="progressao") d+=" I–IV–V–I em cada tom escolhido, com as inversões que deixam a mão quase parada: I na fundamental, IV na 2ª inversão e V na 1ª.";
+    else if(c.seq==="ciclo") d+=" Na ordem do ciclo de quintas: "+cList(cRoots().map(function(ri){return cNote(CROOTS[ri][0],CROOTS[ri][1]);}))+"."+(c.inv?" Cada acorde vem na inversão mais perto do anterior, para a mão andar pouco.":"");
     else {
-      if(c.seq==="ciclo") d+=" Na ordem do ciclo de quintas: "+cList(cRoots().map(function(ri){return cNote(CROOTS[ri][0],CROOTS[ri][1]);}))+"."+(c.inv?" Cada acorde vem na inversão mais perto do anterior, para a mão andar pouco.":"");
-      else if(c.inv) d+=" Cada acorde pode vir na fundamental, na 1ª ou na 2ª inversão.";
+      if(c.inv) d+=" Cada acorde pode vir na fundamental, na 1ª ou na 2ª inversão.";
+      if(c.draw==="todas") d+=" Todas as trocas: cada troca entre estes acordes sai uma vez por volta, e assim cada acorde também sai o mesmo número de vezes."
+        +" Cada série começa no acorde em que a anterior terminou, e a volta só avança quando você termina a série. "+cRoundTxt();
+      else if(c.draw==="dificeis") d+=cHardOk()
+        ?" Trocas difíceis: cada acorde sai o mesmo número de vezes, sempre por uma das saídas mais difíceis do acorde anterior: a mão anda mais, mais teclas trocam entre branca e preta, ou a inversão muda."
+          +" Depois que uma troca sai duas vezes, ela conta como mais difícil se você demora mais que o seu normal, e mais fácil se troca mais rápido."
+        :" Trocas difíceis: com estes acordes, cada um tem poucas saídas e a série ficaria previsível. Escolha pelo menos três grupos na fundamental, ou dois com inversões. Enquanto isso, a série é sorteada pelo desempenho.";
     }
     if(c.hands==="duas") d+=" Com as duas mãos: três notas em cada, a esquerda embaixo.";
     if(!c.shape) d+=" Para começar um grupo novo, deixe o desenho sempre à vista por alguns dias.";
@@ -2412,21 +2602,29 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
     CROOTS.forEach(function(rr){if(pcOf(rr[0],rr[1])===pc)R1=rr;});
     return R1&&inv>=0&&inv<3?cItem(R1[0],R1[1],inv):null;
   }
+  function cWeakParts(x){
+    var parts=[];
+    if(x.errs>0) parts.push('<b>'+x.errs+' de '+x.tot+' com erro</b>');
+    if(x.med) parts.push(x.slow>=0.3?'<i>'+fmt1(x.med/1000)+' s</i>':fmt1(x.med/1000)+' s');
+    return parts.join(" · ");
+  }
+  function cWeakTop(list){
+    return list.filter(function(x){return !x.fresh&&(x.errs>0||x.slow>=0.3);}).sort(function(a,b){return b.weight-a.weight;}).slice(0,5);
+  }
   function cRenderWeak(){
     var ref=cTypical(), el=document.getElementById("c-weak"), keys=Object.keys(cstats.per);
-    var list=keys.map(function(k){var x=statInfo(cstats.per[k],ref);x.it=cItemOfKey(k);return x;})
-      .filter(function(x){return x.it&&!x.fresh&&(x.errs>0||x.slow>=0.3);})
-      .sort(function(a,b){return b.weight-a.weight;}).slice(0,5);
-    if(!list.length){
-      el.innerHTML='<li class="empty">'+(keys.length?"Nenhum acorde se destaca agora: você está acertando todos num tempo parecido.":"Toque algumas séries para ver aqui os acordes que pedem mais treino.")+'</li>';
-      return;
-    }
-    el.innerHTML=list.map(function(x){
-      var parts=[];
-      if(x.errs>0) parts.push('<b>'+x.errs+' de '+x.tot+' com erro</b>');
-      if(x.med) parts.push(x.slow>=0.3?'<i>'+fmt1(x.med/1000)+' s</i>':fmt1(x.med/1000)+' s');
-      return '<li><span class="wn">'+cName(x.it)+'</span><span class="wp">'+CINV[x.it.inv]+'</span><span class="wr">'+parts.join(" · ")+'</span></li>';
-    }).join("");
+    var list=cWeakTop(keys.map(function(k){var x=statInfo(cstats.per[k],ref);x.it=cItemOfKey(k);return x;}).filter(function(x){return x.it;}));
+    el.innerHTML=list.length?list.map(function(x){
+      return '<li><span class="wn">'+cName(x.it)+'</span><span class="wp">'+CINV[x.it.inv]+'</span><span class="wr">'+cWeakParts(x)+'</span></li>';
+    }).join(""):'<li class="empty">'+(keys.length?"Nenhum acorde se destaca agora: você está acertando todos num tempo parecido.":"Toque algumas séries para ver aqui os acordes que pedem mais treino.")+'</li>';
+    // A mesma lista para as trocas, com o tempo típico dos acordes como referência.
+    var pel=document.getElementById("c-weak-pairs"), pkeys=Object.keys(cstats.pairs);
+    var pl=cWeakTop(pkeys.map(function(k){var x=statInfo(cstats.pairs[k],ref), p=k.split(">");x.a=cItemOfKey(p[0]);x.b=cItemOfKey(p[1]);return x;}).filter(function(x){return x.a&&x.b;}));
+    pel.innerHTML=pl.length?pl.map(function(x){
+      return '<li class="tr"><span class="wn">'+cSlash(x.a)+' → '+cSlash(x.b)+'</span><span class="wr">'+cWeakParts(x)+'</span></li>';
+    }).join(""):'<li class="empty">'+(!pkeys.length?"Toque algumas séries para ver aqui as trocas que pedem mais treino."
+      :pkeys.some(function(k){return cstats.pairs[k].n>=FRESH_N;})?"Nenhuma troca se destaca agora."
+      :"Uma troca entra aqui depois de sair duas vezes. O sorteio “Todas as trocas” passa por todas por igual.")+'</li>';
   }
   var cResetEl=document.getElementById("c-reset");
   function cRenderReset(confirming){
@@ -2438,7 +2636,10 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
     var id=e.target.id;
     if(id==="crs-ask") cRenderReset(true);
     else if(id==="crs-no") cRenderReset(false);
-    else if(id==="crs-yes"){cstats=cBlank();cSave();cRenderStats();cRenderWeak();cRenderReset(false);}
+    else if(id==="crs-yes"){
+      cstats=cBlank();cSave();cRenderStats();cRenderWeak();cRenderReset(false);cRenderControls();
+      if(C.state==="idle") cNew();   // as voltas também recomeçam
+    }
   });
 
   function cSet(key,val){if(settings.c[key]===val)return;settings.c[key]=val;saveSettings();cRenderControls();cNew();}
@@ -2451,6 +2652,7 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
   document.querySelectorAll("[data-chand]").forEach(function(b){b.addEventListener("click",function(){cSet("hands",b.dataset.chand);});});
   document.querySelectorAll("[data-cinv]").forEach(function(b){b.addEventListener("click",function(){cSet("inv",b.dataset.cinv==="1");});});
   document.querySelectorAll("[data-cseq]").forEach(function(b){b.addEventListener("click",function(){cSet("seq",b.dataset.cseq);});});
+  document.querySelectorAll("[data-cdraw]").forEach(function(b){b.addEventListener("click",function(){cSet("draw",b.dataset.cdraw);});});
   document.querySelectorAll("[data-cpace]").forEach(function(b){b.addEventListener("click",function(){cSet("pace",b.dataset.cpace);});});
   document.querySelectorAll("[data-cbeats]").forEach(function(b){b.addEventListener("click",function(){cSet("beats",+b.dataset.cbeats);});});
   document.querySelectorAll("[data-ccount]").forEach(function(b){b.addEventListener("click",function(){cSet("count",+b.dataset.ccount);});});
