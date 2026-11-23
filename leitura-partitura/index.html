@@ -1847,7 +1847,8 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
       else if(bd<Math.abs(match[best].t-notes[best].t)){extras.push(match[best]);match[best]=tp;}
       else extras.push(tp);
     });
-    var r={cls:{},dev:{},missed:[],ticks:[],exp:[],ok:0,near:0,miss:0,extras:extras.map(function(x){return x.t;}),extra:extras.length,total:notes.length,ndev:0,median:0,
+    // full: notas inteiras certas. No Segurar, começou no tempo e durou certo; no Bater, é o mesmo que ok.
+    var r={cls:{},dev:{},missed:[],ticks:[],exp:[],ok:0,near:0,miss:0,full:0,extras:extras.map(function(x){return x.t;}),extra:extras.length,total:notes.length,ndev:0,median:0,
            dTotal:0,dOk:0,dEarly:0,dRest:0,dOverlap:0}, devs=[], endAll=R.totalMs+300;
     function u16(tp){return (tp.up==null?endAll:tp.up)/beatMs*4;}
     notes.forEach(function(n,k){
@@ -1867,7 +1868,9 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
         else if(!n.nextRest&&!n.last&&nx&&up>nx.t+30) st="overlap";
         r.dTotal++; if(st==="ok")r.dOk++; else if(st==="early")r.dEarly++; else if(st==="rest")r.dRest++; else r.dOverlap++;
         tk.u16=u16(tp); tk.hs=st;
+        if(c==="ok"&&st==="ok") r.full++;
       }
+      else if(c==="ok") r.full++;
       r.ticks.push(tk);
     });
     extras.forEach(function(tp){var tk={t16:Math.max(0,tp.t)/beatMs*4,c:"bad"};if(hold){tk.u16=u16(tp);tk.hs="bad";}r.ticks.push(tk);});
@@ -1901,7 +1904,7 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
     return res;
   }
   function rHandLine(name,role,r){
-    var pct=r.total?Math.round(r.ok/r.total*100):0;
+    var pct=r.total?Math.round(r.full/r.total*100):0;
     return '<p class="r-line"><b>'+name+'</b> ('+role+'): '+pct+'% · <span class="dot ok"></span>'+r.ok+' no tempo · <span class="dot near"></span>'+r.near+' um pouco fora · <span class="dot bad"></span>'+r.miss+' sem toque · '+r.extra+' a mais</p>';
   }
   function rTend(r,who){
@@ -1909,16 +1912,17 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
     if(Math.abs(r.median)<15) return who?"":"Seus toques ficaram centrados no tempo.";
     return (who||"Você")+" tende a "+(r.median<0?"adiantar":"atrasar")+" cerca de "+Math.round(Math.abs(r.median))+" ms.";
   }
+  // A porcentagem conta notas inteiras certas: no Segurar, a nota precisa começar no tempo e durar certo.
   function rShowResult(){
-    var res=R.result, Rr=res.hands.R, html, tip, ok, tot, extra, lines=[];
+    var res=R.result, Rr=res.hands.R, html, tip, ok, tot, extra, lines=[], unit=res.hold?"% certas":"% no tempo";
     if(!res.two){
-      ok=Rr.ok; tot=Rr.total; extra=Rr.extra;
-      html='<p class="r-score">'+(tot?Math.round(ok/tot*100):0)+'% no tempo</p>'
+      ok=Rr.full; tot=Rr.total; extra=Rr.extra;
+      html='<p class="r-score">'+(tot?Math.round(ok/tot*100):0)+unit+'</p>'
         +'<p class="r-line"><span class="dot ok"></span>No tempo: '+Rr.ok+' · <span class="dot near"></span>Um pouco fora: '+Rr.near+' · <span class="dot bad"></span>Faltaram: '+Rr.miss+' · Toques a mais: '+Rr.extra+'</p>';
       lines.push(rTend(Rr,""));
     } else {
-      var Lr=res.hands.L; ok=Rr.ok+Lr.ok; tot=Rr.total+Lr.total; extra=Rr.extra+Lr.extra;
-      html='<p class="r-score">'+Math.round(ok/tot*100)+'% no tempo</p>'+rHandLine("Mão direita","ritmo",Rr)+rHandLine("Mão esquerda","pulso",Lr);
+      var Lr=res.hands.L; ok=Rr.full+Lr.full; tot=Rr.total+Lr.total; extra=Rr.extra+Lr.extra;
+      html='<p class="r-score">'+Math.round(ok/tot*100)+unit+'</p>'+rHandLine("Mão direita","ritmo",Rr)+rHandLine("Mão esquerda","pulso",Lr);
       lines=res.insights.concat([rTend(Rr,"A mão direita"),rTend(Lr,"A mão esquerda")]);
     }
     var pct=tot?Math.round(ok/tot*100):0;
@@ -1939,7 +1943,7 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
     lines.filter(Boolean).forEach(function(s){html+='<p class="r-line">'+s+'</p>';});
     html+='<p class="r-legend">'+(res.auto?'O exercício começou logo após a contagem'+(rCalOf(R.midi)?', com o atraso calibrado descontado dos toques. ':(R.midi?'. Calibre o atraso do teclado MIDI para a avaliação ficar justa. ':'. Calibre o atraso deste aparelho para a avaliação ficar justa. '))
       :'O seu primeiro toque é a referência, por isso a primeira nota sempre fica verde. ')+'Os traços embaixo de cada linha mostram onde você tocou: à esquerda da nota é adiantado, à direita é atrasado.'
-      +(res.hold?' A barra colorida é quanto você segurou; a faixa clara atrás dela é a duração escrita.':'')+'</p>';
+      +(res.hold?' A barra colorida é quanto você segurou; a faixa clara atrás dela é a duração escrita. Na porcentagem, só conta como certa a nota que começou no tempo e durou certo.':'')+'</p>';
     rResult.innerHTML=html; rResult.hidden=false;
   }
   // A calibração mostrada e feita é a da entrada em uso: o teclado MIDI, se estiver ligado, ou o toque na tela.
