@@ -19,7 +19,7 @@ var HEAD_SUB={
   folha:"Folhas novas a cada rodada para ler as notas em sequência, com uma ou com as duas mãos.",
   ritmo:"Exercícios de ritmo com metrônomo, para tocar no tempo com uma ou com as duas mãos.",
   acordes:"Os 12 acordes maiores no teclado, com inversões, trocas e metrônomo.",
-  partituras:"As partituras que você exporta do MuseScore, para tocar no seu tempo: com o teclado MIDI, a partitura avança quando você acerta as notas."
+  partituras:"As partituras que você exporta do MuseScore, para tocar esperando cada nota ou no andamento, com o teclado MIDI conferindo o que você toca."
 };
 function renderHeader(){
   var t=settings.tab;
@@ -28,7 +28,7 @@ function renderHeader(){
   document.getElementById("h-sub").textContent=HEAD_SUB[t];
 }
 // Para a recarga da versão nova (no fim da página): espera terminar a série, o exercício ou a folha em andamento.
-window.lpOcupado=function(){return R.state!=="idle"||C.state!=="idle"||(midiOn()&&F.idx>0&&!F.done)||(midiOn()&&!!P.rec&&P.idx>P.from&&!P.done);};
+window.lpOcupado=function(){return R.state!=="idle"||C.state!=="idle"||(midiOn()&&F.idx>0&&!F.done)||(midiOn()&&!!P.rec&&P.idx>P.from&&!P.done)||P.tm.state!=="idle";};
 function showTab(t){
   if(t!=="ritmo") rStop();
   if(t!=="acordes") cStop();

@@ -386,6 +386,10 @@
         <p class="c-midi midi-line" data-midi="full"></p>
       </div>
       <div class="p-bar">
+        <div class="seg" role="radiogroup" aria-label="Modo">
+          <button type="button" role="radio" data-pmodo="esperar" aria-checked="true">Esperar a nota</button>
+          <button type="button" role="radio" data-pmodo="andamento" aria-checked="false">No andamento</button>
+        </div>
         <div class="seg" role="radiogroup" aria-label="Mão" id="p-mao" hidden>
           <button type="button" role="radio" data-pmao="duas" aria-checked="true">As duas mãos</button>
           <button type="button" role="radio" data-pmao="direita" aria-checked="false">Direita</button>
@@ -397,6 +401,16 @@
           <button type="button" role="radio" data-ptam="grande" aria-checked="false">Grande</button>
         </div>
         <button type="button" class="btn alt" id="p-ini">Do início</button>
+        <div class="p-tempo" id="p-tempo" hidden>
+          <div class="bpm">
+            <button type="button" class="stepper" id="p-bpm-down" aria-label="Diminuir andamento em 5">−</button>
+            <input type="range" id="p-bpm" min="20" max="240" step="1" value="80" aria-label="Andamento">
+            <button type="button" class="stepper" id="p-bpm-up" aria-label="Aumentar andamento em 5">+</button>
+            <span class="bpm-val"><b id="p-bpm-val">80</b> bpm</span>
+          </div>
+          <button type="button" class="switch" role="switch" id="sw-pmetro" aria-checked="true"><span class="track"></span>Metrônomo</button>
+          <p class="p-orig" id="p-orig"></p>
+        </div>
       </div>
       <div class="p-host" id="p-host"></div>
       <div class="r-result" id="p-result" aria-live="polite" hidden></div>
@@ -404,6 +418,7 @@
         <button type="button" class="btn alt" id="p-prev" aria-label="Compasso anterior">◀<span class="p-wd"> Compasso</span></button>
         <p class="progress" id="p-status"></p>
         <button type="button" class="btn alt" id="p-next" aria-label="Próximo compasso"><span class="p-wd">Compasso </span>▶</button>
+        <button type="button" class="btn" id="p-go" hidden>Começar</button>
         <p class="feedback" id="p-feedback" aria-live="polite"></p>
       </div>
     </div>

@@ -228,6 +228,8 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
 .p-ask{font-size:14px;color:var(--bad)}
 .p-ttl{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:0}
 .p-bar{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;margin:8px 0 4px}
+.p-tempo{display:flex;flex-wrap:wrap;gap:6px 18px;align-items:center;flex-basis:100%}
+.p-orig{margin:0;font-size:13px;color:var(--muted);flex-basis:100%}
 .p-host{position:relative;margin-top:6px;min-height:140px}
 .p-foot{position:sticky;bottom:0;z-index:3;display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;background:var(--surface);border-top:1px solid var(--rule);margin:10px -20px -20px;padding:8px 20px calc(10px + env(safe-area-inset-bottom,0px));border-radius:0 0 14px 14px}
 .p-foot .progress{flex:1;min-width:0;text-align:center}

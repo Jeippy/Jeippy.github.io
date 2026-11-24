@@ -33,6 +33,10 @@ Partituras do MuseScore:
 - A peça fica guardada no aparelho e abre sem internet. Exportou de novo com correções? Abra o arquivo novo,
   com o mesmo nome, e ele substitui o antigo.
 - Escolha tocar com as duas mãos ou com uma só; os botões de compasso levam a qualquer trecho.
+- Esperar a nota: a partitura só avança quando você acerta.
+- No andamento: a partitura anda sozinha a partir da primeira nota que você toca (ou depois de um compasso
+  de contagem, no botão Começar), com metrônomo se quiser. No fim, mostra as notas no tempo, as adiantadas,
+  as atrasadas e os compassos para treinar. O andamento de cada peça fica guardado com ela.
 
 Seu desempenho fica salvo no aparelho, separado da versão online.
 

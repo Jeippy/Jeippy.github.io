@@ -226,13 +226,14 @@ teste("Ritmo: a calibração vai para a entrada usada", function () {
 
 /* ---------- partituras ---------- */
 // Uma posição do cursor da biblioteca, como pCollect monta. notas: [tecla MIDI, pauta (0 = de cima), "lig" se continua uma ligadura].
-// Teclas pretas são escritas como sustenido.
-function posicao(app, ri, m, notas) {
-  return { ri: ri, m: m, mn: m + 1, it: { clone: function () { return {}; } }, notes: notas.map(function (x) {
+// Teclas pretas são escritas como sustenido. tempo: o instante e o compasso, para o andamento ({T, pos, bpm, ...});
+// sem ele, a posição fica num 4/4 a 60 bpm, uma semínima depois da anterior.
+function posicao(app, ri, m, notas, tempo) {
+  return Object.assign({ ri: ri, m: m, mn: m + 1, it: { clone: function () { return {}; } }, notes: notas.map(function (x) {
     var k = x[0], L = app.MIDI_L[k % 12], acc = 0;
     if (L == null) { L = app.MIDI_L[(k - 1) % 12]; acc = 1; }
     return { k: k, L: L, acc: acc, d: app.midiToD(k - acc), st: x[1], cont: x[2] === "lig", n: {} };
-  }) };
+  }), T: ri / 4, pos: ri / 4 - m, bpm: 60, len: 0.25, md: 1, num: 4, den: 4, impl: false }, tempo || {});
 }
 // Uma peça aberta, sem desenho: o cursor e as cores da biblioteca viram funções vazias.
 function abrirPeca(env, raw, two) {
@@ -309,6 +310,94 @@ teste("Partituras: os botões andam de compasso em compasso", function () {
   // Trocar a mão recomeça no compasso em que estava.
   app.pJump(1); app.settings.p.mao = "esquerda"; app.pSteps();
   assert.deepEqual([compasso(), P.steps[P.idx].keys], [1, [43]]);
+});
+
+teste("Partituras no andamento: contagem com anacruse e mudança de andamento", function () {
+  var app = criar().app;
+  // Anacruse de 1 tempo em 4/4 a 60 bpm (semibreve = 4 s); no compasso 2, o andamento vai para 120.
+  var raw = [
+    posicao(app, 0, 0, [[67, 0]], { T: 0, pos: 0, md: 0.25, impl: true }),
+    posicao(app, 1, 1, [[60, 0]], { T: 0.25, pos: 0 }),
+    posicao(app, 2, 1, [[62, 0]], { T: 0.5, pos: 0.25 }),
+    posicao(app, 3, 1, [[64, 0]], { T: 0.75, pos: 0.5, len: 0.5 }),
+    posicao(app, 4, 2, [[65, 0]], { T: 1.25, pos: 0, bpm: 120, len: 1 })
+  ];
+  var steps = app.pBuild(raw, "duas"), ms = app.pTimeline(raw, 1);
+  assert.deepEqual(ms, [0, 1000, 2000, 3000, 5000]);
+  var b = app.pBeats(raw, ms, 1, steps, 0);
+  // Um compasso inteiro de contagem e os três tempos antes da anacruse; ela cai no 4º tempo, sem acento.
+  assert.deepEqual(b.filter(function (x) { return x.count; }).map(function (x) { return [x.rel, x.acc]; }),
+    [[-7000, true], [-6000, false], [-5000, false], [-4000, false], [-3000, true], [-2000, false], [-1000, false]]);
+  assert.deepEqual(b.filter(function (x) { return !x.count; }).map(function (x) { return [x.rel, x.acc]; }),
+    [[0, false], [1000, true], [2000, false], [3000, false], [4000, false], [5000, true], [5500, false], [6000, false], [6500, false]]);
+  // Pela metade do andamento, tudo leva o dobro do tempo; começando no compasso 2, a contagem é um compasso só.
+  assert.deepEqual(app.pTimeline(raw, 2), [0, 2000, 4000, 6000, 10000]);
+  var c = app.pBeats(raw, ms, 1, steps, 4).filter(function (x) { return x.count; }).map(function (x) { return x.rel; });
+  assert.deepEqual(c, [-2000, -1500, -1000, -500]);
+});
+
+function pecaAndamento(app) {
+  return [
+    posicao(app, 0, 0, [[60, 0]]),
+    posicao(app, 1, 0, [[62, 0]]),
+    posicao(app, 2, 0, [[64, 0], [48, 1]]),
+    posicao(app, 3, 0, [[65, 0]]),
+    posicao(app, 4, 1, [[67, 0]], { pos: 0 })
+  ];
+}
+teste("Partituras no andamento: começa na 1ª nota e confere cada nota no tempo", function () {
+  var env = criar(), app = env.app;
+  app.settings.p.modo = "andamento";
+  var P = abrirPeca(env, pecaAndamento(app), true), T = P.tm;
+  function tocar(em, k) { env.avancar(em, app.pTTick); env.tecla(true, k); env.tecla(false, k); }
+  env.avancar(10000);
+  env.tecla(true, 62); env.tecla(false, 62);
+  assert.strictEqual(T.state, "idle", "tecla errada não começa");
+  assert.strictEqual(env.els["p-feedback"].textContent, "A peça começa com Dó na mão direita. Você tocou Ré.");
+  tocar(10000, 60);
+  assert.deepEqual([T.state, T.anchor], ["run", 10000], "a primeira nota marca o tempo");
+  assert.strictEqual(app.lpOcupado(), true);
+  tocar(11030, 62);    // 30 ms atrasada: no tempo
+  tocar(11900, 64);    // 100 ms adiantada: um pouco fora
+  tocar(12010, 48);
+  tocar(12600, 70);    // tecla errada, mais perto da 4ª vez
+  tocar(13000, 65);
+  env.avancar(15100, app.pTTick);   // a 5ª vez passa sem ser tocada
+  assert.strictEqual(T.state, "idle");
+  assert.deepEqual(P.res.slice(0, 5), ["ok", "ok", "near", "bad", "bad"]);
+  var html = env.els["p-result"].innerHTML;
+  assert.ok(html.indexOf("4 de 6 notas no tempo") >= 0, html);
+  assert.ok(html.indexOf("Além delas: 1 um pouco adiantada, 1 que faltou e 1 tecla errada.") >= 0, html);
+  assert.ok(html.indexOf("Compassos para treinar: 1 e 2.") >= 0, html);
+  assert.strictEqual(app.lpOcupado(), false);
+});
+
+teste("Partituras no andamento: Parar recomeça sem resultado", function () {
+  var env = criar(), app = env.app;
+  app.settings.p.modo = "andamento";
+  Object.assign(app.settings.r, { calMidi: true, latMidi: 50 });
+  var P = abrirPeca(env, pecaAndamento(app), true), T = P.tm;
+  env.avancar(20000); env.tecla(true, 60); env.tecla(false, 60);
+  assert.strictEqual(T.lat, 50, "os cliques usam a calibração do teclado feita no Ritmo");
+  env.avancar(21100, app.pTTick); env.tecla(true, 62);   // 100 ms atrasada
+  assert.deepEqual([P.idx, P.res[1]], [1, "near"]);
+  app.pTGo();
+  assert.deepEqual([T.state, P.idx, P.res.length, P.done], ["idle", 0, 0, false]);
+});
+
+teste("Partituras: numa repetição, a nota fica com a pior cor das passagens", function () {
+  var env = criar(), app = env.app;
+  // Dó e Ré, repetidos: as posições 2 e 3 são as mesmas notas do desenho (ni 0 e 1).
+  var raw = [posicao(app, 0, 0, [[60, 0]]), posicao(app, 1, 0, [[62, 0]]), posicao(app, 2, 0, [[60, 0]]), posicao(app, 3, 0, [[62, 0]])];
+  raw.forEach(function (r, i) { r.notes[0].ni = i % 2; });
+  var P = abrirPeca(env, raw, false);
+  env.tecla(true, 64); env.tecla(false, 64); env.tecla(true, 60); env.tecla(false, 60);   // erra o Dó na 1ª passagem
+  env.tecla(true, 62); env.tecla(false, 62); env.tecla(true, 60); env.tecla(false, 60);   // acerta tudo na 2ª
+  env.tecla(true, 62); env.tecla(false, 62);
+  assert.deepEqual(P.res, ["bad", "ok", "ok", "ok"]);
+  assert.deepEqual(P.worst, [3, 1], "o Dó continua vermelho");
+  app.pReset(0);
+  assert.deepEqual(P.worst, [], "recomeçar limpa as cores");
 });
 
 /* ---------- rodar ---------- */
