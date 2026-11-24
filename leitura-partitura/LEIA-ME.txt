@@ -37,6 +37,9 @@ Partituras do MuseScore:
 - No andamento: a partitura anda sozinha a partir da primeira nota que você toca (ou depois de um compasso
   de contagem, no botão Começar), com metrônomo se quiser. No fim, mostra as notas no tempo, as adiantadas,
   as atrasadas e os compassos para treinar. O andamento de cada peça fica guardado com ela.
+- Modo página: tela cheia com o tablet em pé, uma página A4 por vez, com as mesmas linhas da partitura
+  do MuseScore. A página vira sozinha pela metade: na metade de baixo, a de cima já mostra o começo da
+  próxima. Para sair, toque em Sair ou use o gesto de voltar.
 
 Seu desempenho fica salvo no aparelho, separado da versão online.
 

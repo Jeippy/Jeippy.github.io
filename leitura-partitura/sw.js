@@ -1,4 +1,4 @@
-const CACHE = "leitura-partitura-v17";
+const CACHE = "leitura-partitura-v18";
 const ASSETS = [
   "./", "./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png",
   "./css/fontes.css", "./css/app.css",

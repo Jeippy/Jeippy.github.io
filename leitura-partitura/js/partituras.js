@@ -156,10 +156,19 @@ if(window.matchMedia){var pMq=matchMedia("(prefers-color-scheme: dark)");if(pMq.
 // Desenha a peça na largura atual e devolve o cursor e as cores ao ponto em que estavam.
 function pRender(){
   var o=P.osmd;
-  if(!o||!P.rec||pViewEl.hidden||!pHost.clientWidth) return;
+  if(!o||!P.rec||pViewEl.hidden) return;
+  if(P.page) pPageFit();
+  if(!pHost.clientWidth) return;
   P.col={"--staff":pCss("--staff"),"--accent":pCss("--accent"),"--ok":pCss("--ok"),"--warn":pCss("--warn"),"--bad":pCss("--bad")};
-  o.Zoom=P_ZOOM[settings.p.tamanho];
+  // No modo página, páginas A4 com as quebras de linha e de página do arquivo, na escala da página do MuseScore.
+  if(P.osmdPage!==P.page){
+    P.osmdPage=P.page;
+    o.setOptions({pageFormat:P.page?"A4_P":"Endless",newSystemFromXML:P.page,newPageFromXML:P.page,
+      drawTitle:P.page,drawSubtitle:P.page,drawComposer:P.page,drawLyricist:P.page,drawCredits:P.page});
+  }
+  o.Zoom=P.page?pHost.clientWidth/P.pageTenths*P_PAGE_ZOOM[settings.p.tamanho]:P_ZOOM[settings.p.tamanho];
   o.render(); P.w=pHost.clientWidth;
+  if(P.page) pPageLayout();
   if(!P.steps.length) return;
   if(P.done) o.cursor.hide(); else pCursor(false);
   Object.keys(P.colored).forEach(function(i){pPaint(+i);});
@@ -236,10 +245,11 @@ function pShowPiece(rec){
   P.steps=[]; P.colored={}; P.idx=0; P.done=false;
   pControls(); pRender(); pCollect(); pControls();
   P.steps=pBuild(P.raw,pMao()); pReset(0);
-  pViewEl.scrollIntoView({block:"start"});
-  pWakeOn();
+  if(!P.page) pViewEl.scrollIntoView({block:"start"});
+  pWakeOn(); pPageTenths(rec);
 }
 function pClose(){
+  if(P.page) pPageOff();
   pTHalt(); P.rec=null; P.steps=[]; P.raw=[]; P.colored={}; settings.p.ultima=null; saveSettings();
   if(P.osmd){try{P.osmd.clear();}catch(e){}}
   pViewEl.hidden=true; pLibEl.hidden=false; pWakeOff(); pLibRender();
@@ -292,6 +302,7 @@ function pCursor(scroll){
   if(!o||!s||!o.cursor) return;
   o.cursor.show(); o.cursor.iterator=s.it.clone(); o.cursor.update();
   var el=o.cursor.cursorElement;
+  if(P.page){pPageView();return;}
   if(scroll&&el&&el.getBoundingClientRect){
     var r=el.getBoundingClientRect();
     if(r.top<70||r.bottom>window.innerHeight-90) el.scrollIntoView({block:"center",behavior:"smooth"});
@@ -377,7 +388,7 @@ function pResult(){
   }
   var html='<p class="r-score">'+ok+' de '+n+' certas de primeira</p>', lines=[];
   if(P.from>0) lines.push("Do compasso "+P.steps[P.from].mn+" ao fim.");
-  if(P.t0!=null&&P.lastT>P.t0) lines.push("Do primeiro ao último acerto: "+pDur(P.lastT-P.t0)+".");
+  if(P.t0!=null&&P.lastT-P.t0>=1000) lines.push("Do primeiro ao último acerto: "+pDur(P.lastT-P.t0)+".");
   if(order.length){
     var worst=order.slice().sort(function(a,b){return errM[b]-errM[a];}).slice(0,5).sort(function(a,b){return a-b;});
     var many=worst.length>1;
@@ -385,13 +396,13 @@ function pResult(){
   } else lines.push("Sem erros. Na próxima, tente não parar entre uma nota e outra.");
   lines.forEach(function(s){html+='<p class="r-line">'+s+'</p>';});
   html+='<p class="r-legend"><span class="dot ok"></span>certa de primeira &nbsp; <span class="dot bad"></span>com erro. As notas que começam juntas contam como uma.</p>'
-    +'<div class="r-actions"><button type="button" class="btn" id="p-again">Tocar de novo</button></div>';
+    +'<div class="r-actions"><button type="button" class="btn" id="p-again">Tocar de novo</button><button type="button" class="btn alt" id="p-res-close">Fechar</button></div>';
   pRes.innerHTML=html; pRes.hidden=false;
   pRes.scrollIntoView({block:"nearest",behavior:"smooth"});
 }
 pRes.addEventListener("click",function(e){
-  if(e.target.id!=="p-again") return;
-  pReset(P.from);
+  if(e.target.id==="p-res-close") pRes.hidden=true;
+  else if(e.target.id==="p-again") pReset(P.from);
 });
 
 /* ---------- tocar no andamento ---------- */
@@ -628,7 +639,7 @@ function pTResult(){
   if(!settings.r.calMidi) lines.push("Para a medida do tempo descontar o atraso do teclado, calibre-o uma vez na aba Ritmo, tocando no piano.");
   lines.forEach(function(x){html+='<p class="r-line">'+x+'</p>';});
   html+='<p class="r-legend"><span class="dot ok"></span>no tempo &nbsp; <span class="dot near"></span>um pouco fora &nbsp; <span class="dot bad"></span>fora do tempo, faltou ou tecla errada.</p>'
-    +'<div class="r-actions"><button type="button" class="btn" id="p-again">Tocar de novo</button></div>';
+    +'<div class="r-actions"><button type="button" class="btn" id="p-again">Tocar de novo</button><button type="button" class="btn alt" id="p-res-close">Fechar</button></div>';
   pRes.innerHTML=html; pRes.hidden=false;
   pRes.scrollIntoView({block:"nearest",behavior:"smooth"});
 }
@@ -659,6 +670,7 @@ function pControls(){
   document.querySelectorAll("[data-ptam]").forEach(function(b){b.setAttribute("aria-checked",String(b.dataset.ptam===settings.p.tamanho));});
   document.getElementById("p-tempo").hidden=!tempo;
   pGoEl.hidden=!tempo||!P.steps.length; pGoEl.textContent=run?"Parar":"Começar"; pGoEl.className="btn"+(run?" alt":"");
+  document.getElementById("p-exit").hidden=!P.page;
   if(!P.raw.length) return;
   var bpm=pBpm(), orig=Math.round(pFileBpm()), changes=P.raw.some(function(r){return Math.abs(r.bpm-P.raw[0].bpm)>0.5;});
   pBpmEl.value=bpm; document.getElementById("p-bpm-val").textContent=bpm;
@@ -707,6 +719,108 @@ document.querySelectorAll("[data-ptam]").forEach(function(b){
 });
 // O teclado foi ligado ou desligado: a cor da vez e o aviso mudam.
 function pMidiUI(){if(P.rec&&P.steps.length){pPaint(P.idx);pHint();}}
+
+/* ---------- modo página ---------- */
+/* Tela cheia com o tablet em pé: a peça em páginas A4, uma por tela, com as quebras de linha e de página do arquivo e
+   o título, como a página impressa. A página vira pela metade: quando o cursor passa da divisa entre linhas mais perto
+   do meio (split), a metade de cima já mostra as primeiras linhas da página seguinte, até a última divisa dela que cabe
+   acima do split (top). Assim a próxima linha está sempre à vista.
+   pageTenths: a largura da página do MuseScore em décimos de espaço da pauta (A4 com a pauta padrão: 1190,88), que dá a
+   escala. pl: por página, as faixas das linhas [cima, baixo] em px. pH: a altura da página. pg/pgY: a página e a altura
+   do cursor, guardadas para quando ele some no fim. */
+var P_A4=297/210, P_PAGE_ZOOM={pequeno:0.85,medio:1,grande:1.2};
+P.page=false; P.osmdPage=false; P.pageTenths=1190.88; P.pl=[]; P.pH=0; P.pg=0; P.pgY=0;
+// Num .musicxml, a largura da página vem no próprio texto; num .mxl (compactado), fica a do padrão.
+function pPageTenths(rec){
+  P.pageTenths=1190.88;
+  if(!rec||!rec.arquivo||!rec.arquivo.slice) return;
+  rec.arquivo.slice(0,200000).text().then(function(t){
+    if(P.rec!==rec||t.slice(0,2)==="PK") return;
+    var m=/<page-width>\s*([\d.]+)\s*</.exec(t), v=m&&parseFloat(m[1]);
+    if(v>300&&v<5000&&Math.abs(v-P.pageTenths)>1){P.pageTenths=v;if(P.page)pRender();}
+  }).catch(function(){});
+}
+// A divisa entre linhas mais perto do meio da página, em px; null com menos de duas linhas.
+function pPageSplit(bands,H){
+  var best=null, bd=Infinity;
+  for(var i=0;i+1<bands.length;i++){var b=(bands[i][1]+bands[i+1][0])/2, d=Math.abs(b-H/2);if(d<bd){bd=d;best=b;}}
+  return best;
+}
+// Até onde a página seguinte aparece em cima: depois da última linha dela que termina acima do split; null se nenhuma cabe.
+function pPageTopCut(bands,split){
+  var c=null;
+  for(var i=0;i<bands.length&&bands[i][1]<=split;i++) c=i+1<bands.length?Math.min(split,(bands[i][1]+bands[i+1][0])/2):split;
+  return c;
+}
+// O tamanho da página: a largura da tela, ou menos, para a página inteira caber acima da barra.
+function pPageFit(){
+  var foot=pViewEl.querySelector(".p-foot"), fh=foot?foot.offsetHeight:90,
+    w=Math.floor(Math.min(window.innerWidth,(window.innerHeight-fh-6)/P_A4));
+  pHost.style.width=w+"px"; pHost.style.height=Math.ceil(w*P_A4)+"px";
+}
+function pPageLayout(){
+  var o=P.osmd, u=10*o.Zoom, gs=o.GraphicSheet;
+  P.pH=pHost.clientWidth*P_A4;
+  P.pl=(gs&&gs.MusicPages||[]).map(function(pg){
+    return {bands:pg.MusicSystems.map(function(s){var ps=s.PositionAndShape,y=ps.AbsolutePosition.y;return [(y+ps.BorderTop)*u,(y+ps.BorderBottom)*u];})};
+  });
+}
+// Mostra a página do cursor, ou a metade de baixo dela com o começo da seguinte em cima.
+function pPageView(){
+  var o=P.osmd, els=pHost.querySelectorAll('[id^="osmdCanvasPage"]');
+  if(!o||!els.length) return;
+  var cur=o.cursor&&o.cursor.cursorElement;
+  if(cur&&!o.cursor.Hidden&&cur.parentNode){
+    var m=/osmdCanvasPage(\d+)/.exec(cur.parentNode.id||"");
+    if(m) P.pg=+m[1]-1;
+    P.pgY=(parseFloat(cur.style.top)||0)+(parseFloat(cur.style.height)||0)/2;
+  }
+  var n=Math.min(P.pg,els.length-1), pl=P.pl[n], split=pl?pPageSplit(pl.bands,P.pH):null, nx=P.pl[n+1],
+    top=nx&&split!=null?pPageTopCut(nx.bands,split):null, half=top!=null&&P.pgY>split;
+  for(var i=0;i<els.length;i++){
+    var el=els[i];
+    el.style.display=i===n||(half&&i===n+1)?"":"none";
+    el.style.clipPath=half&&i===n?"inset("+split+"px 0 0 0)":half&&i===n+1?"inset(0 0 "+Math.max(0,P.pH-top)+"px 0)":"";
+  }
+  var ln=document.getElementById("p-split");
+  if(!ln){ln=document.createElement("div");ln.id="p-split";ln.className="p-split";pHost.appendChild(ln);}
+  ln.hidden=!half; if(half) ln.style.top=split+"px";
+}
+function pPageOn(){
+  if(P.page||!P.rec) return;
+  P.page=true; P.pg=0; P.pgY=0;
+  document.documentElement.classList.add("p-paging"); pViewEl.classList.add("p-page");
+  var de=document.documentElement, rq=de.requestFullscreen||de.webkitRequestFullscreen;
+  if(rq){
+    try{
+      var pr=rq.call(de);
+      // Em tela cheia, o Chrome deixa travar o tablet em pé, para ele não girar na estante.
+      if(pr&&pr.then) pr.then(function(){try{if(screen.orientation&&screen.orientation.lock)screen.orientation.lock("portrait").catch(function(){});}catch(e){}}).catch(function(){});
+    }catch(e){}
+  }
+  pControls(); pRender(); pCursor(false);
+}
+function pPageOff(){
+  if(!P.page) return;
+  P.page=false;
+  document.documentElement.classList.remove("p-paging"); pViewEl.classList.remove("p-page");
+  pHost.style.width=""; pHost.style.height="";
+  var ln=document.getElementById("p-split"); if(ln) ln.hidden=true;
+  try{if(screen.orientation&&screen.orientation.unlock)screen.orientation.unlock();}catch(e){}
+  if(document.fullscreenElement||document.webkitFullscreenElement){try{(document.exitFullscreen||document.webkitExitFullscreen).call(document);}catch(e){}}
+  pControls(); pRender(); pCursor(true);
+}
+document.getElementById("p-page").addEventListener("click",pPageOn);
+document.getElementById("p-exit").addEventListener("click",pPageOff);
+// O gesto de voltar do Android (ou o Esc) sai da tela cheia; o modo página sai junto.
+document.addEventListener("fullscreenchange",function(){if(!document.fullscreenElement&&P.page)pPageOff();});
+document.addEventListener("webkitfullscreenchange",function(){if(!document.webkitFullscreenElement&&P.page)pPageOff();});
+// O tablet girou ou a janela mudou: a página volta a caber na tela.
+window.addEventListener("resize",function(){
+  if(!P.page||!P.rec) return;
+  var w=pHost.clientWidth; pPageFit();
+  if(pHost.clientWidth!==w) pRender();
+});
 
 /* ---------- tela acesa com a partitura aberta ---------- */
 function pWakeOn(){

@@ -400,6 +400,18 @@ teste("Partituras: numa repetição, a nota fica com a pior cor das passagens", 
   assert.deepEqual(P.worst, [], "recomeçar limpa as cores");
 });
 
+teste("Partituras no modo página: onde a página vira pela metade", function () {
+  var app = criar().app;
+  // As linhas de uma página A4 de 1131 px (6 linhas) e da seguinte, em px, como pPageLayout mede.
+  var p1 = [[101, 236], [259, 363], [392, 503], [521, 630], [656, 772], [788, 904]];
+  var p2 = [[34, 146], [166, 282], [300, 409], [433, 550], [567, 677], [702, 818]];
+  var split = app.pPageSplit(p1, 1131);
+  assert.strictEqual(split, 512, "a divisa entre a 3ª e a 4ª linha, a mais perto do meio");
+  assert.strictEqual(app.pPageTopCut(p2, split), 421, "em cima cabem as 3 primeiras linhas da página seguinte");
+  assert.strictEqual(app.pPageSplit([[100, 300]], 1131), null, "uma linha só: vira a página inteira");
+  assert.strictEqual(app.pPageTopCut([[30, 600]], split), null, "se a 1ª linha da seguinte não cabe, vira a página inteira");
+});
+
 /* ---------- rodar ---------- */
 var falhas = 0, t0 = Date.now();
 testes.forEach(function (t) {
