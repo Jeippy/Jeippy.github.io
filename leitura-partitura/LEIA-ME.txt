@@ -23,8 +23,16 @@ Teclado MIDI (opcional, vale para todas as abas):
 - Ritmo: qualquer tecla vale como toque. Calibre o atraso uma vez tocando no piano; essa calibração
   fica separada da do toque na tela.
 - Acordes: o app confere cada acorde e mede o tempo de troca.
+- Partituras: a partitura avança quando você toca todas as notas que começam juntas.
 - Sem teclado, tudo funciona pela tela, como antes.
 - No iPhone e no iPad o Safari não recebe teclado MIDI; lá o app funciona só pela tela.
+
+Partituras do MuseScore:
+- No MuseScore, abra a peça e use Arquivo > Exportar, escolhendo MusicXML (serve .mxl ou .musicxml).
+- Passe o arquivo para o tablet (por exemplo pelo Google Drive) e, na aba Partituras, toque em "Abrir arquivo".
+- A peça fica guardada no aparelho e abre sem internet. Exportou de novo com correções? Abra o arquivo novo,
+  com o mesmo nome, e ele substitui o antigo.
+- Escolha tocar com as duas mãos ou com uma só; os botões de compasso levam a qualquer trecho.
 
 Seu desempenho fica salvo no aparelho, separado da versão online.
 

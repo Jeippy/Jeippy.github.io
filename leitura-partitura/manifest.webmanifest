@@ -2,7 +2,7 @@
   "name": "Leitura de Partitura",
   "short_name": "Leitura",
   "lang": "pt-BR",
-  "description": "Treino de leitura de notas nas claves de Sol e Fá, de ritmo com metrônomo e de acordes no teclado, com teclado MIDI opcional.",
+  "description": "Treino de leitura de notas nas claves de Sol e Fá, de ritmo com metrônomo, de acordes no teclado e de partituras do MuseScore, com teclado MIDI opcional.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Leitura de Partitura</title>
-<meta name="description" content="Treino de leitura de notas nas claves de Sol e Fá, de ritmo com metrônomo e de acordes no teclado, com teclado MIDI opcional.">
+<meta name="description" content="Treino de leitura de notas nas claves de Sol e Fá, de ritmo com metrônomo, de acordes no teclado e de partituras do MuseScore, com teclado MIDI opcional.">
 <meta name="theme-color" content="#EDF0F3" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#111418" media="(prefers-color-scheme: dark)">
 <link rel="manifest" href="manifest.webmanifest">
@@ -52,6 +52,7 @@
       <button role="tab" id="tab-folha" aria-controls="panel-folha" aria-selected="false">Folha de leitura</button>
       <button role="tab" id="tab-ritmo" aria-controls="panel-ritmo" aria-selected="false">Ritmo</button>
       <button role="tab" id="tab-acordes" aria-controls="panel-acordes" aria-selected="false">Acordes</button>
+      <button role="tab" id="tab-partituras" aria-controls="panel-partituras" aria-selected="false">Partituras</button>
     </div>
   </header>
 
@@ -365,6 +366,49 @@
     </div>
   </section>
 
+  <section id="panel-partituras" role="tabpanel" aria-labelledby="tab-partituras" hidden>
+    <div class="card" id="p-lib">
+      <div class="card-head">
+        <h2 class="p-h">Suas partituras</h2>
+        <label class="btn" for="p-file">Abrir arquivo</label>
+        <input type="file" id="p-file" class="sr">
+      </div>
+      <p class="feedback p-msg" id="p-msg" aria-live="polite"></p>
+      <ul class="p-list" id="p-list"></ul>
+      <p class="desc">No MuseScore, use Arquivo › Exportar e escolha MusicXML: servem os arquivos .mxl e .musicxml. As partituras ficam guardadas neste aparelho e abrem sem internet.</p>
+    </div>
+    <div class="card" id="p-view" hidden>
+      <div class="sheet-head">
+        <div class="p-ttl">
+          <button type="button" class="txtbtn" id="p-back">← Partituras</button>
+          <h2 class="p-h" id="p-title"></h2>
+        </div>
+        <p class="c-midi midi-line" data-midi="full"></p>
+      </div>
+      <div class="p-bar">
+        <div class="seg" role="radiogroup" aria-label="Mão" id="p-mao" hidden>
+          <button type="button" role="radio" data-pmao="duas" aria-checked="true">As duas mãos</button>
+          <button type="button" role="radio" data-pmao="direita" aria-checked="false">Direita</button>
+          <button type="button" role="radio" data-pmao="esquerda" aria-checked="false">Esquerda</button>
+        </div>
+        <div class="seg" role="radiogroup" aria-label="Tamanho da partitura">
+          <button type="button" role="radio" data-ptam="pequeno" aria-checked="false">Pequena</button>
+          <button type="button" role="radio" data-ptam="medio" aria-checked="true">Média</button>
+          <button type="button" role="radio" data-ptam="grande" aria-checked="false">Grande</button>
+        </div>
+        <button type="button" class="btn alt" id="p-ini">Do início</button>
+      </div>
+      <div class="p-host" id="p-host"></div>
+      <div class="r-result" id="p-result" aria-live="polite" hidden></div>
+      <div class="p-foot">
+        <button type="button" class="btn alt" id="p-prev" aria-label="Compasso anterior">◀<span class="p-wd"> Compasso</span></button>
+        <p class="progress" id="p-status"></p>
+        <button type="button" class="btn alt" id="p-next" aria-label="Próximo compasso"><span class="p-wd">Compasso </span>▶</button>
+        <p class="feedback" id="p-feedback" aria-live="polite"></p>
+      </div>
+    </div>
+  </section>
+
   <details class="map" id="map">
     <summary id="map-summary">Mapa das notas</summary>
     <p class="note" id="map-note">Todas as notas da extensão escolhida, da mais grave à mais aguda. Toque numa nota para ouvir.</p>
@@ -380,6 +424,7 @@
 <script src="js/ajustes.js"></script>
 <script src="js/ritmo.js"></script>
 <script src="js/acordes.js"></script>
+<script src="js/partituras.js"></script>
 <script src="js/app.js"></script>
 <script>
 if("serviceWorker" in navigator && /^https?:$/.test(location.protocol)){

@@ -1,8 +1,9 @@
-const CACHE = "leitura-partitura-v15";
+const CACHE = "leitura-partitura-v16";
 const ASSETS = [
   "./", "./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png",
   "./css/fontes.css", "./css/app.css",
-  "./js/base.js", "./js/pauta.js", "./js/treino.js", "./js/folha.js", "./js/ajustes.js", "./js/ritmo.js", "./js/acordes.js", "./js/app.js"
+  "./js/base.js", "./js/pauta.js", "./js/treino.js", "./js/folha.js", "./js/ajustes.js", "./js/ritmo.js", "./js/acordes.js", "./js/partituras.js", "./js/app.js",
+  "./vendor/opensheetmusicdisplay.min.js"
 ];
 
 self.addEventListener("install", (e) => {

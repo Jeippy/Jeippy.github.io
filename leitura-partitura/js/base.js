@@ -139,7 +139,7 @@ function play(d){
 }
 
 /* ---------- teclado MIDI ---------- */
-/* Uma conexão para o app todo; cada nota vai para a aba aberta. Treino e Folha conferem a nota tocada, o Ritmo
+/* Uma conexão para o app todo; cada nota vai para a aba aberta. Treino, Folha e Partituras conferem a nota tocada, o Ritmo
    usa cada tecla como um toque e os Acordes conferem o conjunto de notas apertadas.
    held: notas apertadas agora (nota MIDI → instante). setT: instante da última mudança no conjunto.
    dirty: houve nota nova desde o último acorde reconhecido; segurar o acorde anterior não conta como erro. */
@@ -186,6 +186,7 @@ function midiMsg(e){
   else if(tab==="ritmo"){if(on)rDown(e.timeStamp,rTwo()&&nt<60?"L":"R","m"+nt);else rUp(e.timeStamp,"m"+nt);}
   else if(on&&tab==="treino") drillKey(nt,t);
   else if(on&&tab==="folha") fKey(nt,t);
+  else if(on&&tab==="partituras") pKey(nt,t);
 }
 // Linha de estado do teclado em cada aba. Com data-midi="opt", ela some nos navegadores sem MIDI.
 function midiUI(){
@@ -202,7 +203,7 @@ function midiUI(){
   });
 }
 function midiChanged(){
-  midiUI(); drillHint(); sheetMidiUI(); renderSheet(); rUI(); rCalText(); cRender();
+  midiUI(); drillHint(); sheetMidiUI(); renderSheet(); rUI(); rCalText(); cRender(); pMidiUI();
 }
 document.addEventListener("click",function(e){if(e.target.closest&&e.target.closest(".midi-btn"))midiConnect();});
 // Nota MIDI ↔ nota da pauta (passos diatônicos, Dó central = 28 = MIDI 60). Teclas pretas não têm nota na pauta.

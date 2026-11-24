@@ -4,7 +4,7 @@
 "use strict";
 var fs = require("fs"), path = require("path"), vm = require("vm");
 
-var ARQUIVOS = ["base", "pauta", "treino", "folha", "ajustes", "ritmo", "acordes", "app"];
+var ARQUIVOS = ["base", "pauta", "treino", "folha", "ajustes", "ritmo", "acordes", "partituras", "app"];
 var DIR = path.join(__dirname, "..", "leitura-partitura", "js");
 
 // Elemento falso: aceita tudo o que o app faz com os elementos, sem desenhar nada.

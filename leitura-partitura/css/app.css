@@ -215,6 +215,23 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
 .kfn{fill:var(--paper);font-family:var(--font-body);font-weight:700;text-anchor:middle}
 .knm{fill:var(--ink);font-family:var(--font-body);font-weight:700;text-anchor:middle}
 .knm.x{fill:var(--bad)}
+/* Partituras */
+.p-h{font-family:var(--font-display);font-size:24px;font-weight:600;line-height:1.2;margin:0}
+.p-msg{text-align:left;margin:8px 0 0;min-height:0}
+.p-list{list-style:none;margin:6px 0 14px;padding:0}
+.p-list li{display:flex;align-items:center;gap:6px 14px;flex-wrap:wrap;border-top:1px solid var(--rule)}
+.p-list li:first-child{border-top:0}
+.p-list li.empty{color:var(--muted);font-size:15px;padding:12px 0}
+.p-open{flex:1;min-width:12em;display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;background:none;border:0;padding:10px 0;cursor:pointer;color:var(--ink);font:inherit}
+.p-t{font-size:18px;font-weight:700}
+.p-s{font-size:13px;color:var(--muted)}
+.p-ask{font-size:14px;color:var(--bad)}
+.p-ttl{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:0}
+.p-bar{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;margin:8px 0 4px}
+.p-host{position:relative;margin-top:6px;min-height:140px}
+.p-foot{position:sticky;bottom:0;z-index:3;display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;background:var(--surface);border-top:1px solid var(--rule);margin:10px -20px -20px;padding:8px 20px calc(10px + env(safe-area-inset-bottom,0px));border-radius:0 0 14px 14px}
+.p-foot .progress{flex:1;min-width:0;text-align:center}
+.p-foot .feedback{flex-basis:100%;margin:0;min-height:1.5em;font-size:16px}
 
 @media (max-width:760px){
   .below{grid-template-columns:minmax(0,1fr);gap:28px}
@@ -230,6 +247,8 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
   .tabs{max-width:100%;overflow-x:auto}
   .tabs button{padding:7px 11px}
   .c-side{gap:16px}
+  .p-wd{display:none}
+  .p-foot{margin:10px -12px -14px;padding:8px 12px calc(10px + env(safe-area-inset-bottom,0px));border-radius:0 0 12px 12px}
 }
 @media (prefers-reduced-motion: reduce){
   *{transition:none!important;animation:none!important}

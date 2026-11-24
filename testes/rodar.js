@@ -18,7 +18,7 @@ function contar(lista) { var m = {}; lista.forEach(function (k) { m[k] = (m[k] |
 function valores(m) { return Object.keys(m).map(function (k) { return m[k]; }); }
 
 /* ---------- carregamento ---------- */
-teste("o app carrega os 8 arquivos e inicia", function () {
+teste("o app carrega os 9 arquivos e inicia", function () {
   var app = criar().app;
   assert.strictEqual(app.settings.tab, "treino");
   assert.strictEqual(app.C.items.length, 12);
@@ -222,6 +222,93 @@ teste("Ritmo: a calibração vai para a entrada usada", function () {
   assert.deepEqual([tela.calibrated, tela.latency, tela.calMidi], [true, 40, false], "tocando na tela");
   var piano = calibrar("m");
   assert.deepEqual([piano.calMidi, piano.latMidi, piano.calibrated], [true, 40, false], "tocando no piano");
+});
+
+/* ---------- partituras ---------- */
+// Uma posição do cursor da biblioteca, como pCollect monta. notas: [tecla MIDI, pauta (0 = de cima), "lig" se continua uma ligadura].
+// Teclas pretas são escritas como sustenido.
+function posicao(app, ri, m, notas) {
+  return { ri: ri, m: m, mn: m + 1, it: { clone: function () { return {}; } }, notes: notas.map(function (x) {
+    var k = x[0], L = app.MIDI_L[k % 12], acc = 0;
+    if (L == null) { L = app.MIDI_L[(k - 1) % 12]; acc = 1; }
+    return { k: k, L: L, acc: acc, d: app.midiToD(k - acc), st: x[1], cont: x[2] === "lig", n: {} };
+  }) };
+}
+// Uma peça aberta, sem desenho: o cursor e as cores da biblioteca viram funções vazias.
+function abrirPeca(env, raw, two) {
+  var app = env.app, P = app.P;
+  app.settings.tab = "partituras"; app.MIDI.state = "on";
+  P.osmd = { EngravingRules: { GNote: function () { return null; } }, cursor: { show: function () {}, hide: function () {}, update: function () {} } };
+  P.rec = { titulo: "teste" }; P.raw = raw; P.two = two; P.lastMn = raw[raw.length - 1].mn;
+  P.steps = app.pBuild(raw, app.pMao()); app.pReset(0);
+  return P;
+}
+function pecaTeste(app) {
+  return [
+    posicao(app, 0, 0, [[60, 0], [48, 1]]),           // Dó central e Dó grave
+    posicao(app, 1, 0, [[64, 0], [67, 0], [64, 0]]),  // Mi e Sol (o Mi em duas vozes)
+    posicao(app, 2, 1, [[64, 0, "lig"], [43, 1]]),    // o Mi continua ligado; só o Sol grave começa
+    posicao(app, 3, 1, [[64, 0, "lig"]]),             // só a ligadura: não pede tecla
+    posicao(app, 4, 2, [[66, 0], [50, 1]])            // Fá♯ e Ré
+  ];
+}
+
+teste("Partituras: vezes de tocar por mão, sem ligaduras e sem repetir tecla", function () {
+  var app = criar().app, raw = pecaTeste(app);
+  function teclas(mao) { return app.pBuild(raw, mao).map(function (s) { return s.keys.slice().sort().join("+"); }); }
+  assert.deepEqual(teclas("duas"), ["48+60", "64+67", "43", "50+66"]);
+  assert.deepEqual(teclas("direita"), ["60", "64+67", "66"]);
+  assert.deepEqual(teclas("esquerda"), ["48", "43", "50"]);
+});
+
+teste("Partituras: espera as notas certas, marca o erro e mostra o resultado", function () {
+  var env = criar(), app = env.app, P = abrirPeca(env, pecaTeste(app), true);
+  env.tecla(true, 48); env.avancar(env.agora() + 30);
+  assert.strictEqual(P.idx, 0, "falta o Dó central");
+  env.tecla(true, 60); env.tecla(false, 60); env.tecla(false, 48);
+  assert.strictEqual(P.idx, 1, "acorde completo, em qualquer ordem");
+  assert.strictEqual(app.lpOcupado(), true, "a peça em andamento segura a recarga");
+  env.tecla(true, 65);
+  assert.strictEqual(P.err, true);
+  assert.strictEqual(env.els["p-feedback"].textContent, "Eram Mi e Sol na mão direita. Você tocou Fá.");
+  env.tecla(false, 65); env.tecla(true, 64); env.tecla(true, 67); env.tecla(false, 64); env.tecla(false, 67);
+  assert.deepEqual([P.idx, P.res[1]], [2, "bad"], "certa depois do erro conta como erro");
+  env.tecla(true, 43); env.tecla(false, 43);
+  env.tecla(true, 50); env.tecla(true, 66);
+  assert.strictEqual(P.done, true);
+  assert.deepEqual(P.res, ["ok", "bad", "ok", "ok"]);
+  assert.ok(env.els["p-result"].innerHTML.indexOf("3 de 4 certas de primeira") >= 0);
+  assert.ok(env.els["p-result"].innerHTML.indexOf("Compasso com erro: 1.") >= 0);
+  assert.strictEqual(app.lpOcupado(), false);
+});
+
+teste("Partituras: tecla errada na oitava e sustenido sem tocar", function () {
+  var env = criar(), app = env.app, P = abrirPeca(env, pecaTeste(app), true);
+  app.settings.p.mao = "direita"; app.pSteps();
+  env.tecla(true, 48);
+  assert.strictEqual(env.els["p-feedback"].textContent, "Era Dó. Você tocou o Dó uma oitava abaixo.");
+  env.tecla(false, 48); env.tecla(true, 60); env.tecla(false, 60); env.tecla(true, 64); env.tecla(true, 67);
+  env.tecla(false, 64); env.tecla(false, 67); env.tecla(true, 65);
+  assert.strictEqual(env.els["p-feedback"].textContent, "Era Fá♯. Você tocou Fá.");
+  env.tecla(true, 54);
+  assert.strictEqual(env.els["p-feedback"].textContent, "Era Fá♯. Você tocou o Fá♯ uma oitava abaixo.");
+  env.tecla(true, 63);
+  assert.strictEqual(env.els["p-feedback"].textContent, "Era Fá♯. Você tocou Ré♯.");
+});
+
+teste("Partituras: os botões andam de compasso em compasso", function () {
+  var env = criar(), app = env.app, P = abrirPeca(env, pecaTeste(app), true);
+  function compasso() { return P.steps[P.idx].m; }
+  app.pJump(1); assert.deepEqual([compasso(), P.idx], [1, 2]);
+  app.pJump(1); assert.deepEqual([compasso(), P.idx], [2, 3]);
+  app.pJump(1); assert.strictEqual(P.idx, 3, "no último compasso, fica");
+  app.pJump(-1); assert.deepEqual([compasso(), P.idx], [1, 2]);
+  env.tecla(true, 43); env.tecla(false, 43); env.tecla(true, 50); env.tecla(true, 66);
+  assert.ok(env.els["p-result"].innerHTML.indexOf("Do compasso 2 ao fim.") >= 0);
+  app.pJump(0); assert.deepEqual([P.idx, P.done, P.res.length], [0, false, 0], "do início, sem resultados");
+  // Trocar a mão recomeça no compasso em que estava.
+  app.pJump(1); app.settings.p.mao = "esquerda"; app.pSteps();
+  assert.deepEqual([compasso(), P.steps[P.idx].keys], [1, [43]]);
 });
 
 /* ---------- rodar ---------- */
