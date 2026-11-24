@@ -1,5 +1,9 @@
-const CACHE = "leitura-partitura-v14";
-const ASSETS = ["./", "./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png"];
+const CACHE = "leitura-partitura-v15";
+const ASSETS = [
+  "./", "./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png",
+  "./css/fontes.css", "./css/app.css",
+  "./js/base.js", "./js/pauta.js", "./js/treino.js", "./js/folha.js", "./js/ajustes.js", "./js/ritmo.js", "./js/acordes.js", "./js/app.js"
+];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS.map((u) => new Request(u, { cache: "reload" })))).then(() => self.skipWaiting()));

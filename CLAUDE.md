@@ -6,7 +6,22 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Site de usuário do GitHub Pages (`Jeippy.github.io`). Hoje o único conteúdo é `leitura-partitura/`: um PWA offline em pt-BR para treinar leitura de notas (claves de Sol, Fá e as duas juntas), ritmo com metrônomo e os 12 acordes maiores no teclado. Não existe `index.html` na raiz. O dono usa num Galaxy Tab S9 FE (Chrome, Android) com um piano digital ligado por USB-MIDI.
 
-Sem build, sem dependências, sem testes, sem linter. Os arquivos são servidos exatamente como estão no repositório. O histórico mostra que as versões chegam por upload na interface web do GitHub ("Add files via upload").
+Não há build, dependências nem linter. Os arquivos são servidos exatamente como estão no repositório. As versões antigas chegavam por upload na interface web do GitHub; hoje chegam por commit e push na `main`, que o GitHub Pages publica sozinho.
+
+## Testes
+
+```powershell
+node testes/rodar.js
+```
+
+Roda em menos de 1 s e não precisa de nada além do Node. `testes/ambiente.js` carrega os 8 scripts de `leitura-partitura/js/` num contexto do Node, na ordem do `index.html`, com uma página falsa e um relógio controlado:
+- `env.app` dá acesso às funções e variáveis de cima de cada arquivo, como `env.app.cGen` e `env.app.C`.
+- `env.avancar(t, quadro)` anda o relógio e roda os timers. Use `quadro` para chamar `cTick` como o `requestAnimationFrame` faria.
+- `env.tecla(aperta, nota)` simula o teclado MIDI.
+
+Os testes cobrem: as séries de acordes, o metrônomo dos Acordes, as teclas juntas no Treino, a folha, o Segurar e a calibração do Ritmo. **Rode antes de publicar**, e acrescente um teste em `testes/rodar.js` quando corrigir um defeito ou criar uma regra nova.
+
+O navegador de teste pode marcar a página como oculta (`document.hidden`). Nesse caso o `requestAnimationFrame` quase para, e os Acordes com metrônomo param por causa da regra "o app saiu da tela". Teste a lógica com tempo pelos testes em Node.
 
 ## Rodar localmente
 
@@ -20,19 +35,34 @@ e abra `http://localhost:8000/leitura-partitura/`. No painel de navegador do Cla
 
 Para testar o teclado MIDI sem teclado, em qualquer aba, troque `navigator.requestMIDIAccess` por uma função falsa antes de clicar em "Conectar teclado MIDI". A função deve devolver `{inputs: new Map([["1", entrada]])}`. Depois, chame `entrada.onmidimessage({data: new Uint8Array([0x90, nota, 100]), timeStamp: performance.now()})` para simular cada nota. `rStamp` só aceita `timeStamp` a menos de 1 s de agora, então tempos de troca simulados precisam de esperas reais (`await new Promise(r => setTimeout(r, ms))`).
 
-Para testar funções internas do IIFE, como gerar centenas de séries, não abra uma cópia fora do projeto: o painel mostra esses arquivos só como imagem estática. Numa aba em `localhost`, busque o `index.html` com `fetch`, troque o `})();` final por `window.__T={cGen:cGen,C:C,...};})();` e carregue a página com `document.open()`, `document.write()` e `document.close()`.
+No navegador, as funções e as variáveis dos scripts são globais: no console, `cGen()`, `C` e `settings` já estão acessíveis.
 
 ## Publicar uma mudança: incrementar o cache
 
-`sw.js` é cache-first: quem já instalou o app continua vendo a versão em cache até o nome do cache mudar. **Sempre que alterar qualquer arquivo listado em `ASSETS`, incremente `CACHE` em `sw.js`** (hoje `leitura-partitura-v14`). Na ativação, o SW apaga os caches antigos, e o `index.html` recarrega a página uma vez no `controllerchange`. Antes de recarregar, ele espera `window.lpOcupado()` ficar falso, ou seja, nenhuma série, exercício ou folha em andamento. Se adicionar um arquivo novo ao app, inclua-o em `ASSETS`.
+`sw.js` é cache-first: quem já instalou o app continua vendo a versão em cache até o nome do cache mudar. **Sempre que alterar qualquer arquivo listado em `ASSETS`, incremente `CACHE` em `sw.js`** (hoje `leitura-partitura-v15`). Na ativação, o SW apaga os caches antigos, e o `index.html` recarrega a página uma vez no `controllerchange`. Antes de recarregar, ele espera `window.lpOcupado()` ficar falso, ou seja, nenhuma série, exercício ou folha em andamento. Se adicionar um arquivo novo ao app, inclua-o em `ASSETS`: uma página que funciona online e quebra offline é sinal de arquivo faltando ali.
 
-## Arquitetura do `index.html`
+## Arquitetura
 
-Tudo fica num único arquivo (~2900 linhas): CSS, um `<svg class="defs">` com os glifos e um IIFE em JS.
+Os arquivos de `leitura-partitura/`:
+- `index.html`: só a marcação. Tem o `<svg class="defs">` com os glifos, os `<link>` dos estilos, os `<script src>` na ordem certa e o registro do service worker.
+- `css/fontes.css`: as fontes embutidas em base64 (Bodoni Moda e Atkinson Hyperlegible). São ~130 KB numa linha só: **não leia**.
+- `css/app.css`: o resto do estilo.
+- Os scripts de `js/`, carregados nesta ordem:
+  1. `base.js`: constantes da pauta, utilidades comuns, armazenamento, som e a conexão MIDI.
+  2. `pauta.js`: o desenho da pauta e a escolha das notas.
+  3. `treino.js`
+  4. `folha.js`: a folha e o mapa das notas.
+  5. `ajustes.js`: os ajustes do topo.
+  6. `ritmo.js`
+  7. `acordes.js`
+  8. `app.js`: abas, redimensionamento e início.
 
-- **Linha 18 = fontes embutidas em base64** (Bodoni Moda 500/600 normal e itálico, Atkinson Hyperlegible 400/700), com ~130 KB numa linha só. Não leia essa linha. Use `Read` com `offset: 19`, ou `Grep`, porque ler o arquivo do início estoura o limite.
-- **Estilo do JS:** ES5 (`var`, `function`, sem arrow functions, `"use strict"` dentro do IIFE). Comentários, textos da interface e nomes de ajustes em português. Os arquivos usam CRLF. Mantenha esse estilo. O `sed -i` do Git Bash troca CRLF por LF: prefira a ferramenta Edit.
-- **Seções**, marcadas por comentários `/* ---------- nome ---------- */`: armazenamento, som, teclado MIDI, desenho da pauta, geração de notas, treino, desempenho, folha de leitura (e o acompanhamento pelo teclado MIDI), mapa, ajustes, ritmo, acordes (sequência, teclado MIDI, série, desenho, ajustes e desempenho), abas, redimensionamento, início.
+Pontos que valem para todos os scripts:
+- **Sem módulos.** São scripts comuns, que dividem o mesmo escopo global, como acontecia dentro do antigo IIFE único. Por isso o `index.html` ainda abre direto do arquivo.
+- **Um script só usa, no carregamento, o que os anteriores já definiram.** Isso vale para o código solto no topo, como `var x=f()` e `addEventListener("click", nome)`. Dentro de funções, qualquer nome serve, porque elas só rodam depois que `app.js` inicia o app. Um arquivo novo entra antes de `app.js`, no `index.html`, no `ASSETS` e em `ARQUIVOS` de `testes/ambiente.js`.
+- **Os prefixos são históricos:** `c` para acordes, `r` para ritmo, `f` para folha. Exceção: `cList`, `cEsc`, `cNote`, `cPcName` e `accSym` moram em `base.js` e servem o app todo.
+- **Estilo do JS:** ES5 (`var`, `function`, sem arrow functions) e `"use strict"` no topo de cada arquivo. Comentários, textos da interface e nomes de ajustes ficam em português, e os arquivos usam CRLF. Mantenha esse estilo. O `sed -i` do Git Bash troca CRLF por LF, então prefira a ferramenta Edit.
+- **Seções** dentro dos arquivos, marcadas por `/* ---------- nome ---------- */`.
 - **Teclado MIDI:** uma conexão para o app todo (`MIDI`, `midiConnect`, `midiAuto`). `midiMsg` manda cada nota para a aba aberta, e `midiChanged` atualiza os textos de todas. Cada aba tem uma linha de estado `.midi-line`. Com `data-midi="opt"`, ela fica vazia nos navegadores sem MIDI. `midiToD` e `dToMidi` convertem entre nota MIDI e nota da pauta (Dó central = 28 = MIDI 60), e `midiDesc` descreve a tecla errada ("o Sol uma oitava abaixo", "Fá♯").
 - **Modelo de altura:** uma nota é um inteiro em passos diatônicos, `oitava*7 + índice da letra`, com Dó central = 28. `CLEFS[st].base` é a nota da 1ª linha (Sol: 30, Fá: 18). As extensões (`PRESETS` para uma clave, `GRAND_PRESETS` para as duas pautas) são posições relativas à 1ª linha (0 = 1ª linha, 8 = 5ª). `pool()` devolve `{d, st}` da extensão atual.
 - **Desenho:** a pauta é SVG gerado como string (`noteSVG`, `systemSVG`; o ritmo usa `rLayout` e `rDraw`). Os glifos musicais são `<path>` em `<defs>` (`#g-clef`, `#f-clef`, `#g-head`, pausas, bandeirolas, fórmulas de compasso), usados via `<use>` em unidades de "espaço" da pauta. As cores vêm das classes (`.nt.ok`, `.nt.bad`, `.nt.cur`…) ligadas às variáveis CSS.
@@ -51,6 +81,6 @@ Tudo fica num único arquivo (~2900 linhas): CSS, um `<svg class="defs">` com os
   - `lcs-settings`: os ajustes. Os do ritmo ficam em `settings.r` e os dos acordes em `settings.c`.
   - `lcs-stats`: estatísticas por nota em `stats.per["clave:nota"]`.
   - `lcs-chords`: estatísticas dos acordes em `cstats.per["altura:inversão"]`, de cada troca em `cstats.pairs["de>para"]` (`cRecord` recebe o acorde anterior) e as voltas em `cstats.rounds["sorteio|fundamentais+f/i"]`. Só os tempos medidos pelo MIDI entram na troca média. Na carga, os ajustes são mesclados com os padrões e validados um a um. **Ao criar um ajuste novo, adicione o padrão e a validação**, e se mudar o formato dos dados, faça a migração no carregamento (como a das chaves antigas sem `clave:`), para não quebrar dados já salvos nos aparelhos.
-- **Tema:** variáveis CSS em `:root`, com modo escuro por `prefers-color-scheme` ou `data-theme`. `theme-color` aparece em `index.html` e em `manifest.webmanifest` (`#EDF0F3`).
+- **Tema:** variáveis CSS em `:root` (`css/app.css`), com modo escuro por `prefers-color-scheme` ou `data-theme`. `theme-color` aparece em `index.html` e em `manifest.webmanifest` (`#EDF0F3`).
 
 `LEIA-ME.txt` são as instruções de instalação para o usuário final (hospedar em https e adicionar à tela inicial). Atualize esse arquivo se o fluxo de instalação ou de atualização mudar.

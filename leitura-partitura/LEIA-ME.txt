@@ -28,5 +28,5 @@ Teclado MIDI (opcional, vale para todas as abas):
 
 Seu desempenho fica salvo no aparelho, separado da versão online.
 
-Para atualizar: envie os arquivos novos para a mesma pasta, substituindo os antigos.
+Para atualizar: envie a pasta inteira de novo (com as subpastas css e js), substituindo os arquivos antigos.
 No celular, abra o app uma vez com internet; ele baixa a versão nova sozinho.
