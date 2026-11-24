@@ -281,8 +281,8 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
 <div class="wrap">
   <header class="top">
     <div class="ttl">
-      <h1>Leitura em Clave de <em id="h1-clef">Sol</em></h1>
-      <p class="sub">Pautas novas a cada rodada para treinar o reconhecimento das notas, da 1ª linha às linhas suplementares.</p>
+      <h1 id="h1">Leitura em Clave de <em>Sol</em></h1>
+      <p class="sub" id="h-sub">Pautas novas a cada rodada para treinar o reconhecimento das notas, da 1ª linha às linhas suplementares.</p>
     </div>
     <div class="tabs" role="tablist" aria-label="Modo">
       <button role="tab" id="tab-treino" aria-controls="panel-treino" aria-selected="true">Treino</button>
@@ -778,7 +778,7 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
     if(tab==="acordes") cOnNotes();
     // Ritmo com as duas mãos: abaixo do Dó central é a esquerda; do Dó central para cima, a direita.
     else if(tab==="ritmo"){if(on)rDown(e.timeStamp,rTwo()&&nt<60?"L":"R","m"+nt);else rUp(e.timeStamp,"m"+nt);}
-    else if(on&&tab==="treino") answer(null,nt);
+    else if(on&&tab==="treino") drillKey(nt,t);
     else if(on&&tab==="folha") fKey(nt,t);
   }
   // Linha de estado do teclado em cada aba. Com data-midi="opt", ela some nos navegadores sem MIDI.
@@ -882,7 +882,7 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
 
   /* ---------- geração de notas ---------- */
   /* Prioridade de cada nota no treino.
-     1. Avaliação inicial: toda nota da extensão aparece pelo menos duas vezes antes do resto.
+     1. Avaliação inicial: enquanto uma nota não foi respondida duas vezes, ela tem peso alto (6), para aparecer mais.
      2. Depois, o peso cresce com os erros recentes (últimas 6 respostas) e com a demora
         (mediana dos últimos 5 acertos comparada ao seu tempo típico). Notas fáceis continuam aparecendo. */
   var RECENT=6, TIMES=5, FRESH_N=2;
@@ -993,14 +993,28 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
     el.classList.remove("is-ok","is-bad"); void el.offsetWidth; el.classList.add("is-"+kind);
     clearTimeout(el._t); el._t=setTimeout(function(){el.classList.remove("is-"+kind);},520);
   }
-  // li: botão da letra (0 = Dó). key: nota MIDI tocada no piano, que precisa estar na oitava escrita.
-  function answer(li,key){
+  // Teclas que chegam quase juntas (até 70 ms) contam como uma resposta só, para uma tecla vizinha esbarrada junto com
+  // a certa não virar erro na nota seguinte. Vale a certa, se estiver entre elas; senão, a primeira.
+  var drillKeys=null;
+  function drillKey(k,t){
+    if(drill.busy||drill.idx>=drill.notes.length) return;
+    if(drillKeys){drillKeys.k.push(k);return;}
+    drillKeys={k:[k],t:t};
+    setTimeout(function(){
+      var b=drillKeys; drillKeys=null;
+      if(drill.busy||drill.idx>=drill.notes.length) return;
+      var want=dToMidi(drill.notes[drill.idx].d);
+      answer(null,b.k.indexOf(want)>=0?want:b.k[0],b.t);
+    },70);
+  }
+  // li: botão da letra (0 = Dó). key: nota MIDI tocada no piano, que precisa estar na oitava escrita; at: quando foi tocada.
+  function answer(li,key,at){
     if(drill.busy||drill.idx>=drill.notes.length) return;
     var nt=drill.notes[drill.idx], d=nt.d, midi=key!=null, kd=midi?midiToD(key):null;
     var ok=midi?kd===d:letterOf(d)===li;
     if(midi) li=kd==null?null:letterOf(kd);
     // Respostas muito acima do seu tempo típico contam como pausa: o acerto ou erro vale, o tempo não.
-    var dt=performance.now()-drill.t0, ref=typicalMs(), limit=clamp(4*(ref||3000),8000,20000);
+    var dt=(at!=null?at:performance.now())-drill.t0, ref=typicalMs(), limit=clamp(4*(ref||3000),8000,20000);
     var timed=!drill.interrupted&&dt<=limit;
     stats.answered++;
     if(timed){stats.timeMs+=dt;stats.timed++;}
@@ -1041,7 +1055,8 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
     if(k.length!==1) return;
     if(i<0&&k>="1"&&k<="7") i=+k-1;
     if(i<0) return;
-    e.preventDefault(); answer(i);
+    e.preventDefault();
+    if(!e.repeat) answer(i);   // segurar a tecla não responde várias notas seguidas
   });
 
   /* ---------- desempenho ---------- */
@@ -1061,7 +1076,7 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
   function renderWeak(){
     var cv=coverage(), ref=typicalMs(), noteEl=document.getElementById("weak-note"), el=document.getElementById("weak-list");
     if(!cv.done){
-      noteEl.textContent="Avaliação inicial: "+cv.seen+" de "+cv.total+" notas desta extensão já foram respondidas duas vezes. Até completar, as que faltam aparecem primeiro.";
+      noteEl.textContent="Avaliação inicial: "+cv.seen+" de "+cv.total+" notas desta extensão já foram respondidas duas vezes. Até completar, as que faltam aparecem com mais frequência.";
     } else {
       noteEl.textContent="Todas as "+cv.total+" notas desta extensão foram avaliadas"+(ref?". Seu tempo típico é de "+fmt1(ref/1000)+" s por nota":"")
         +". As que você erra ou demora mais aparecem com mais frequência; as outras continuam aparecendo para não esquecer.";
@@ -1348,7 +1363,7 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
     document.querySelectorAll("[data-clef]").forEach(function(b){b.setAttribute("aria-checked",String(b.dataset.clef===settings.clef));});
     document.querySelectorAll("[data-hands]").forEach(function(b){b.setAttribute("aria-checked",String(b.dataset.hands===settings.hands));});
     document.getElementById("hands-seg").hidden=!isGrand();
-    document.getElementById("h1-clef").textContent=MODE_NAMES[settings.clef];
+    renderHeader();
     sheetIntro();
   }
   function sheetIntro(){
@@ -1745,7 +1760,7 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
     if(!AC){R.msg="Este navegador não consegue tocar o metrônomo.";rUI();return;}
     actx=actx||new AC();
     var ctx=actx;
-    R.state="starting"; R.kind=kind; R.msg=""; R.midi=midiOn();
+    R.state="starting"; R.kind=kind; R.msg=""; R.midi=midiOn(); R.src=0;
     if(kind==="ex"){R.result=null;rResult.hidden=true;rDraw();}
     rUI();
     Promise.resolve(ctx.state==="suspended"?ctx.resume():null).then(function(){
@@ -1760,7 +1775,7 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
       R.beatMs=beat*1000; R.meter=meter; R.countPerf=rPerfAt(ctx,T0); R.startPerf=R.countPerf+meter*R.beatMs; R.totalMs=exBeats*R.beatMs;
       R.anchor=(kind==="cal"||R.auto)?R.startPerf:null;   // início automático: o tempo 1 vem logo após a contagem
       R.taps=[]; R.active={}; R.state="run"; rUI();
-      try{if(navigator.wakeLock)navigator.wakeLock.request("screen").then(function(w){R.wake=w;}).catch(function(){});}catch(e){}
+      try{if(navigator.wakeLock)navigator.wakeLock.request("screen").then(function(w){if(R.state==="idle"){try{w.release();}catch(e){}}else R.wake=w;}).catch(function(){});}catch(e){}
       R.raf=requestAnimationFrame(rTick);
     }).catch(function(){R.state="idle";R.msg="Não foi possível ligar o som. Toque em “Começar” de novo.";rUI();});
   }
@@ -1789,6 +1804,8 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
     if(!rHold()) pad._t=setTimeout(function(){pad.classList.remove("hit");},90);
     // Toques durante a contagem não contam. No início pelo 1º toque, o primeiro depois dela (ou até meio tempo antes) começa o exercício.
     if(R.kind!=="cal"&&t<R.startPerf-0.5*R.beatMs){R.active[id]={h:h,ignored:true};return;}
+    // A entrada do primeiro toque que conta (tecla do piano ou tela) decide qual calibração vale e qual é gravada.
+    if(!R.src){R.src=1;R.midi=id.charAt(0)==="m";}
     if(R.anchor==null){R.anchor=t;if(settings.r.metro==="sempre")rScheduleFrom(t);}
     // Tecla do piano (id "m…"): o piano já soa, então o app não toca o som do toque.
     var press={t:t,h:h,up:null,voice:id.charAt(0)==="m"?null:rTapSound(h)}; R.taps.push(press); R.active[id]=press;
@@ -1942,7 +1959,8 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
     lines.push(tip);
     lines.filter(Boolean).forEach(function(s){html+='<p class="r-line">'+s+'</p>';});
     html+='<p class="r-legend">'+(res.auto?'O exercício começou logo após a contagem'+(rCalOf(R.midi)?', com o atraso calibrado descontado dos toques. ':(R.midi?'. Calibre o atraso do teclado MIDI para a avaliação ficar justa. ':'. Calibre o atraso deste aparelho para a avaliação ficar justa. '))
-      :'O seu primeiro toque é a referência, por isso a primeira nota sempre fica verde. ')+'Os traços embaixo de cada linha mostram onde você tocou: à esquerda da nota é adiantado, à direita é atrasado.'
+      :(res.two?'O seu primeiro toque, de qualquer das mãos, é a referência: a primeira nota dessa mão sempre fica verde, e a da outra mão mostra a diferença entre as duas. '
+        :'O seu primeiro toque é a referência, por isso a primeira nota sempre fica verde. '))+'Os traços embaixo de cada linha mostram onde você tocou: à esquerda da nota é adiantado, à direita é atrasado.'
       +(res.hold?' A barra colorida é quanto você segurou; a faixa clara atrás dela é a duração escrita. Na porcentagem, só conta como certa a nota que começou no tempo e durou certo.':'')+'</p>';
     rResult.innerHTML=html; rResult.hidden=false;
   }
@@ -2091,6 +2109,12 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
     if(settings.tab!=="ritmo") return;
     if(R.state!=="idle") e.preventDefault();
     rUp(e.timeStamp,"k"+e.code);
+  });
+  // Com o app fora da tela o metrônomo e os toques perdem o sentido: o exercício para, em vez de terminar cheio de faltas.
+  document.addEventListener("visibilitychange",function(){
+    if(!document.hidden||R.state==="idle") return;
+    R.msg=(R.kind==="cal"?"Calibração interrompida":"Exercício interrompido")+" porque o app saiu da tela. Aperte “"+(R.kind==="cal"?"Calibrar atraso":"Começar")+"” de novo.";
+    rStop();
   });
 
   /* ---------- acordes ---------- */
@@ -2445,7 +2469,7 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
     var c=settings.c;
     C.mode=MIDI.state==="on"?"midi":"self"; C.pace=c.pace; C.N=c.beats;
     C.res=C.items.map(function(){return {st:null,err:false,dt:null,off:null,played:null};});
-    C.idx=0; C.slot=-1; C.fin=0; C.lastT=null; C.asked=false; C.revealed=c.shape; C.interrupted=false;
+    C.idx=0; C.slot=-1; C.fin=0; C.open=-1; C.lastT=null; C.asked=false; C.revealed=c.shape; C.interrupted=false;
     MIDI.dirty=false; cResult.hidden=true; cFeedback("");
     // No tablet deitado os ajustes ocupam o alto da tela: rola até o cartão para o acorde ficar à vista.
     var card=document.querySelector("#panel-acordes .card"), rc=card.getBoundingClientRect();
@@ -2471,8 +2495,9 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
     if(C.state!=="run") return;
     var now=performance.now(), bm=C.beatMs, rel=now-C.startPerf, n=C.items.length, slotMs=C.N*bm;
     var slot=rel<0?-1:Math.min(Math.floor(rel/slotMs),n-1);
+    // A virada não apaga MIDI.dirty: um acorde errado tocado logo antes dela ainda precisa ser avaliado (cMaybeWrong).
     if(slot!==C.slot){
-      C.slot=slot; C.idx=Math.max(0,slot); MIDI.dirty=false;
+      C.slot=slot; C.idx=Math.max(0,slot);
       C.revealed=settings.c.shape||(slot>=0&&C.res[slot].err);
       cRender();
     }
@@ -2486,6 +2511,10 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
       if(C.mode==="midi"&&!r.st){r.st="bad";r.miss=true;cRecord(C.items[C.fin],false,null,C.items[C.fin-1]);}
       C.fin++;
     }
+    // Quando a vez de um acorde abre, as notas já apertadas que mudaram desde o último acorde reconhecido são avaliadas:
+    // um acorde errado tocado antes e segurado na virada também conta como erro.
+    var open=-1; for(var j=C.fin;j<n&&cT(j)-0.5*bm<=now;j++) open=j;
+    if(open!==C.open){C.open=open;if(C.mode==="midi"&&MIDI.dirty)cMaybeWrong();}
     if(C.mode==="midi") cMetroCheck();
     if(now>=cT(n)+400){cFinish();return;}
     C.raf=requestAnimationFrame(cTick);
@@ -2518,10 +2547,13 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
     for(var k=C.fin;k<C.items.length&&cT(k)-0.5*bm<=now;k++){
       var r=C.res[k]; if(r.st) continue;
       if(!cMatches(held,C.items[k])) continue;
-      var off=MIDI.setT-cT(k), ms=Math.round(Math.abs(off));
-      r.off=off; r.st=r.err?"bad":(ms<=cOkWin()?"ok":"near");
+      // Acorde já apertado antes de a vez abrir (por exemplo, durante a contagem): conta como adiantado meio tempo,
+      // sem entrar na média de adiantado/atrasado.
+      var early=MIDI.setT<cT(k)-0.5*bm, off=early?-0.5*bm:MIDI.setT-cT(k), ms=Math.round(Math.abs(off));
+      r.off=off; r.early=early; r.st=r.err?"bad":(!early&&ms<=cOkWin()?"ok":"near");
       cRecord(C.items[k],!r.err,null,C.items[k-1]); MIDI.dirty=false; clearTimeout(C.pend);
-      cFeedback(cSlash(C.items[k])+": "+(r.err?"certo depois de um erro":r.st==="ok"?"no tempo":ms+" ms "+(off>0?"atrasado":"adiantado"))+".",r.st==="ok"?"ok":(r.st==="bad"?"bad":""));
+      cFeedback(cSlash(C.items[k])+": "+(r.err?"certo depois de um erro":early?"já estava apertado antes da vez; troque no tempo 1"
+        :r.st==="ok"?"no tempo":ms+" ms "+(off>0?"atrasado":"adiantado"))+".",r.st==="ok"?"ok":(r.st==="bad"?"bad":""));
       cRenderKbd();
       return;
     }
@@ -2533,7 +2565,13 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
     var sig=held.join(",");
     C.pend=setTimeout(function(){
       if(C.state!=="run"||!MIDI.dirty||cHeld().join(",")!==sig) return;
-      var k=C.pace==="metro"?C.slot:C.idx; if(k<0||k>=C.items.length) return;
+      var k=C.idx;
+      if(C.pace==="metro"){
+        // O acorde em jogo é o último cuja vez já abriu (meio tempo antes do tempo 1) e que ainda não foi tocado.
+        var now=performance.now(); k=-1;
+        for(var j=C.fin;j<C.items.length&&cT(j)-0.5*C.beatMs<=now;j++) if(!C.res[j].st) k=j;
+      }
+      if(k<0||k>=C.items.length) return;
       var r=C.res[k], it=C.items[k]; if(r.st||cMatches(held,it)) return;
       r.err=true; r.played=held; MIDI.dirty=false; C.revealed=true; C.asked=true;
       cFeedback(cDiagnose(held,it)+(C.pace==="livre"?" Toque de novo para seguir.":""),"bad");
@@ -2543,6 +2581,7 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
   // Botão “Não lembro” (com teclado) ou “Conferir” (sem teclado).
   function cCheck(){
     if(C.state!=="run"||C.pace!=="livre"||C.asked) return;
+    if(C.mode==="midi"&&settings.c.shape) return;   // o desenho já está à vista: não há o que mostrar, nem erro a marcar
     C.asked=true; C.revealed=true;
     if(C.mode==="midi"){C.res[C.idx].err=true;cFeedback("Toque o acorde do desenho para seguir. Ele conta como erro.","");}
     else {C.revealT=performance.now();cFeedback("Confira no desenho: você acertou?","");}
@@ -2590,7 +2629,7 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
     } else if(d.pace==="metro"){
       html='<p class="r-score">'+cnt.ok+' de '+n+' no tempo</p>';
       lines.push((cnt.near===1?"1 fora do tempo":cnt.near+" fora do tempo")+" e "+(cnt.bad===1?"1 errado ou não tocado":cnt.bad+" errados ou não tocados")+", a "+d.bpm+" bpm com "+d.N+(d.N>1?" tempos":" tempo")+" por acorde.");
-      var offs=d.res.filter(function(r){return r.off!=null&&!r.err;}).map(function(r){return r.off;});
+      var offs=d.res.filter(function(r){return r.off!=null&&!r.err&&!r.early;}).map(function(r){return r.off;});
       if(offs.length>=3&&Math.abs(mean(offs))>40) lines.push("Em média você trocou "+Math.round(Math.abs(mean(offs)))+" ms "+(mean(offs)>0?"atrasado: prepare a mão olhando o “Depois” antes do tempo 1.":"adiantado."));
       lines.push(cnt.bad?"Diminua o andamento ou deixe cada acorde durar mais tempos até não sobrar nenhum vermelho."
         :cnt.near?"Repita até ficarem todos verdes.":"Tudo no tempo: suba 5 bpm ou deixe cada acorde durar menos tempos.");
@@ -2704,10 +2743,11 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
     document.getElementById("c-status").textContent=(run?(counting?"Contagem":"Acorde "+(i+1)+" de "+n):n+" acordes")
       +" · "+(c.hands==="duas"?"duas mãos":"mão "+c.hands)+" · "+(metro?c.bpm+" bpm, "+c.beats+(c.beats>1?" tempos":" tempo")+" por acorde":"no seu tempo");
     document.getElementById("c-hint").textContent=midi
-      ?(metro?"Depois da contagem, troque de acorde no tempo 1 de cada um; o clique agudo marca a troca. Olhe o “Depois” para preparar a mão antes. Esc para parar."
-        :(run?"":"Para começar, toque o primeiro acorde ou aperte “Começar”. ")+"O próximo acorde aparece assim que o app reconhece o atual. Se não lembrar, aperte “Não lembro” (ou a barra de espaço) para ver o desenho. Esc para parar.")
+      ?(metro?"Depois da contagem, troque de acorde no tempo 1 de cada um; "+((run?C.N:c.beats)>1?"o clique agudo marca a troca.":"o clique agudo marca o começo de cada compasso.")+" Olhe o “Depois” para preparar a mão antes. Esc para parar."
+        :(run?"":"Para começar, toque o primeiro acorde ou aperte “Começar”. ")+"O próximo acorde aparece assim que o app reconhece o atual."
+          +(c.shape?"":" Se não lembrar, aperte “Não lembro” (ou a barra de espaço) para ver o desenho.")+" Esc para parar.")
       :(metro?"Sem teclado conectado, o app não confere: o desenho aparece na metade de cada acorde para você comparar com o que tocou."
-        :"Sem teclado conectado: toque o acorde, aperte “Conferir” para ver o desenho e marque se acertou. No teclado do computador ou num pedal de virar página, → confere e marca acerto, ← marca erro.");
+        :"Sem teclado conectado: toque o acorde, aperte “Conferir” para ver o desenho e marque se acertou. No teclado do computador ou num pedal de virar página, → mostra o desenho e depois marca acerto; ← marca erro.");
   }
 
   /* ---------- acordes: ajustes e desempenho ---------- */
@@ -2795,7 +2835,8 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
     else if(id==="crs-no") cRenderReset(false);
     else if(id==="crs-yes"){
       cstats=cBlank();cSave();cRenderStats();cRenderWeak();cRenderReset(false);cRenderControls();
-      if(C.state==="idle") cNew();   // as voltas também recomeçam
+      // As voltas também recomeçam. Com uma série em andamento, o fim dela não grava mais a volta antiga.
+      if(C.state==="idle") cNew(); else C.round=null;
     }
   });
 
@@ -2837,12 +2878,15 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
     if(!yes&&!no) return;
     e.preventDefault();
     if(e.repeat||C.pace!=="livre") return;
-    if(!C.asked){if(yes)cCheck();}
+    // Sem teclado, ← antes de conferir já marca erro (num pedal, a primeira tecla apertada pode ser a de erro).
+    if(!C.asked){if(yes)cCheck();else if(C.mode==="self"){cCheck();cMark(false);}}
     else if(C.mode==="self") cMark(yes);
   });
   document.addEventListener("visibilitychange",function(){
-    if(!document.hidden||C.state==="idle") return;
-    if(C.pace==="metro"&&C.state!=="idle") cStop("Série interrompida porque o app saiu da tela.");
+    if(C.state==="idle") return;
+    // Ao voltar para a tela, o navegador já soltou o bloqueio de tela apagada: pede de novo.
+    if(!document.hidden){if(C.state==="run")cWake();return;}
+    if(C.pace==="metro") cStop("Série interrompida porque o app saiu da tela.");
     else C.interrupted=true;
   });
 
@@ -2856,7 +2900,23 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
     var own=(t==="ritmo"||t==="acordes");
     document.getElementById("global-settings").hidden=own;
     document.getElementById("map").hidden=own;
+    renderHeader();
   }
+  // Título e frase do topo, conforme a aba.
+  var HEAD_SUB={
+    treino:"Pautas novas a cada rodada para treinar o reconhecimento das notas, da 1ª linha às linhas suplementares.",
+    folha:"Folhas novas a cada rodada para ler as notas em sequência, com uma ou com as duas mãos.",
+    ritmo:"Exercícios de ritmo com metrônomo, para tocar no tempo com uma ou com as duas mãos.",
+    acordes:"Os 12 acordes maiores no teclado, com inversões, trocas e metrônomo."
+  };
+  function renderHeader(){
+    var t=settings.tab;
+    document.getElementById("h1").innerHTML=t==="ritmo"?"Leitura de <em>Ritmo</em>":t==="acordes"?"Acordes <em>Maiores</em>"
+      :"Leitura em Clave de <em>"+MODE_NAMES[settings.clef]+"</em>";
+    document.getElementById("h-sub").textContent=HEAD_SUB[t];
+  }
+  // Para a recarga da versão nova (no fim da página): espera terminar a série, o exercício ou a folha em andamento.
+  window.lpOcupado=function(){return R.state!=="idle"||C.state!=="idle"||(midiOn()&&F.idx>0&&!F.done);};
   function showTab(t){
     if(t!=="ritmo") rStop();
     if(t!=="acordes") cStop();
@@ -2894,8 +2954,9 @@ fieldset:disabled .chip,fieldset:disabled .seg,fieldset:disabled .bpm{opacity:.5
 <script>
 if("serviceWorker" in navigator && /^https?:$/.test(location.protocol)){
   var hadController=!!navigator.serviceWorker.controller, reloaded=false;
-  // Quando uma versão nova do app assume, recarrega uma vez para mostrá-la.
-  navigator.serviceWorker.addEventListener("controllerchange",function(){if(hadController&&!reloaded){reloaded=true;location.reload();}});
+  // Quando uma versão nova do app assume, recarrega uma vez para mostrá-la, mas só depois de terminar o que está em andamento.
+  var recarregar=function(){if(window.lpOcupado&&window.lpOcupado()){setTimeout(recarregar,2000);return;}location.reload();};
+  navigator.serviceWorker.addEventListener("controllerchange",function(){if(hadController&&!reloaded){reloaded=true;recarregar();}});
   window.addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(){});});
 }
 </script>
