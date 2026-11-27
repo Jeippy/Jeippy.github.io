@@ -55,7 +55,7 @@ h1 em{font-style:italic;color:var(--accent)}
 .chip:hover{border-color:var(--accent)}
 .chip[aria-checked="true"]{border-color:var(--accent);background:var(--accent-soft);font-weight:700}
 .desc{margin:0;font-size:14px;color:var(--muted);min-height:1.5em;max-width:70ch}
-.seg{display:inline-flex;border:1px solid var(--rule);border-radius:8px;overflow:hidden;background:var(--surface)}
+.seg{display:inline-flex;flex-wrap:wrap;max-width:100%;border:1px solid var(--rule);border-radius:8px;overflow:hidden;background:var(--surface)}
 .seg button{font-size:14px;padding:6px 12px;border:0;background:transparent;cursor:pointer;white-space:nowrap}
 .seg button + button{border-left:1px solid var(--rule)}
 .seg button[aria-checked="true"]{background:var(--ink);color:var(--paper);font-weight:700}

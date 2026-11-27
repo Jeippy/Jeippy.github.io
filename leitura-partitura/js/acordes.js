@@ -25,7 +25,7 @@ settings.c=Object.assign({groups:["bbb"],hands:"direita",inv:false,seq:"sorteada
   if(!c.groups.length) c.groups=["bbb"];
   if(["direita","esquerda","duas"].indexOf(c.hands)<0) c.hands="direita";
   c.inv=c.inv===true;
-  if(["sorteada","ciclo","progressao"].indexOf(c.seq)<0) c.seq="sorteada";
+  if(["sorteada","ciclo","cromatica","progressao","inversoes","ancora"].indexOf(c.seq)<0) c.seq="sorteada";
   if(["peso","todas","dificeis"].indexOf(c.draw)<0) c.draw="peso";
   if(c.pace!=="metro") c.pace="livre";
   c.beats=[4,2,1].indexOf(+c.beats)>=0?+c.beats:4;
@@ -36,7 +36,8 @@ settings.c=Object.assign({groups:["bbb"],hands:"direita",inv:false,seq:"sorteada
 
 // per["altura:inversão"] = {n, w, r, t}, como nas notas; t guarda os últimos tempos de troca.
 // pairs["de>para"] = o mesmo para cada troca, com as chaves de per. rounds["sorteio|acordes"] = onde parou a volta
-// dos sorteios “Todas as trocas” e “Trocas difíceis”, separada por conjunto de acordes.
+// dos sorteios “Todas as trocas” e “Trocas difíceis” e da sequência “Um com todos” (“ancora|acordes”), separada por
+// conjunto de acordes.
 function cBlank(){return {answered:0,correct:0,timeMs:0,timed:0,per:{},pairs:{},rounds:{}};}
 var cstats=Object.assign(cBlank(),store.get("lcs-chords",{}));
 if(!cstats.per||typeof cstats.per!=="object") cstats.per={};
@@ -60,6 +61,11 @@ function cRoots(){
   var r=[];
   CGROUPS.forEach(function(g){if(settings.c.groups.indexOf(g.id)>=0)r=r.concat(g.roots);});
   return r.sort(function(a,b){return a-b;});   // na ordem do ciclo de quintas
+}
+// Os mesmos, na ordem do teclado, a partir do Dó.
+function cRootsUp(){
+  function pc(ri){return pcOf(CROOTS[ri][0],CROOTS[ri][1]);}
+  return cRoots().sort(function(a,b){return pc(a)-pc(b);});
 }
 function cTypical(){
   var all=[];
@@ -104,7 +110,7 @@ function cSetItems(){
   cRoots().forEach(function(ri){invs.forEach(function(v){out.push(cItem(CROOTS[ri][0],CROOTS[ri][1],v));});});
   return out;
 }
-function cRoundKey(){return settings.c.draw+"|"+cRoots().join(".")+(settings.c.inv?"i":"f");}
+function cRoundKey(pre){return (pre||settings.c.draw)+"|"+cRoots().join(".")+(settings.c.inv?"i":"f");}
 // Todas as trocas entre acordes de fundamentais diferentes, como "de>para".
 function cAllPairs(items){
   var out=[];
@@ -247,6 +253,56 @@ function cRoundTxt(){
   return "Volta "+(laps+1)+": "+(E-left).toLocaleString("pt-BR")+" de "+E.toLocaleString("pt-BR")+" trocas.";
 }
 
+/* “Um com todos”: um acorde fica fixo e vai e volta para cada um dos outros (Dó, Ré♭, Dó, Ré… Si, Dó), e assim cada
+   troca com ele sai nos dois sentidos. Cada série fixa um acorde, subindo pelo teclado a partir do Dó; com inversões,
+   cada posição é um fixo. rounds guarda o fixo da próxima série (next), que só avança com a série terminada. */
+function cAncoraItems(){return cSetItems().sort(function(a,b){return a.pc-b.pc||a.inv-b.inv;});}
+function cAncoraIdx(items){
+  var st=cstats.rounds[cRoundKey("ancora")];
+  for(var i=0;i<items.length;i++) if(st&&cKey(items[i])===st.next) return i;
+  return 0;
+}
+function cGenAncora(){
+  var items=cAncoraItems(), n=items.length, i=cAncoraIdx(items), A=items[i], out=[A];
+  // Os outros, a partir do seguinte ao fixo e dando a volta; as outras posições do próprio fixo ficam de fora.
+  for(var j=1;j<n;j++){var X=items[(i+j)%n];if(X.pc!==A.pc)out.push(X,A);}
+  C.round={k:cRoundKey("ancora"),draw:"ancora",i:i,n:n,st:{next:cKey(items[(i+1)%n])}};
+  return out.map(function(it){return cItem(it.L,it.a,it.inv);});
+}
+function cAncoraTxt(){
+  var items=cAncoraItems(), i=cAncoraIdx(items);
+  return "Agora: "+cSlash(items[i])+" com cada um ("+(i+1)+" de "+items.length+").";
+}
+// Texto do resultado: o que vem na série seguinte.
+function cAncoraProg(rd){
+  var items=cAncoraItems();
+  if(rd.i+1>=rd.n) return "Volta completa: cada acorde já foi o fixo. A próxima série recomeça com "+cSlash(items[0])+".";
+  return "Na próxima série, "+cSlash(items[(rd.i+1)%items.length])+" com cada um.";
+}
+
+/* “Cromática”: os acordes na ordem do teclado, subindo e descendo (com os 12, de semitom em semitom), começando
+   no mais grave na fundamental. Sem inversões, a virada não repete o acorde. Com inversões, cada subida ou descida
+   é numa posição: na virada, o mesmo acorde passa para a posição seguinte (fundamental, 1ª, 2ª, fundamental…). */
+function cGenCrom(n){
+  var r=cRootsUp(), m=r.length, out=[], i=0, inv=0, up=true;
+  while(out.length<n){
+    var R=CROOTS[r[i]]; out.push(cItem(R[0],R[1],inv));
+    if(up?i<m-1:i>0) i+=up?1:-1;
+    else {up=!up; if(settings.c.inv) inv=(inv+1)%3; else i+=up?1:-1;}
+  }
+  return out;
+}
+
+/* “Inversões”: cada acorde sobe e desce pelas posições, como quem sobe o teclado e volta: fundamental, 1ª, 2ª,
+   fundamental uma oitava acima, 2ª, 1ª e fundamental. Depois vem o seguinte, na ordem do teclado. O app não confere
+   a oitava, então a fundamental de cima também vale tocada no lugar. */
+var C_INV_UP=[0,1,2,0,2,1,0];
+function cGenInv(){
+  var out=[];
+  cRootsUp().forEach(function(ri){var R=CROOTS[ri];C_INV_UP.forEach(function(v){out.push(cItem(R[0],R[1],v));});});
+  return out;
+}
+
 function cGen(){
   var c=settings.c, roots=cRoots(), n=c.count, out=[], i;
   C.round=null;
@@ -261,6 +317,12 @@ function cGen(){
         out.push(cItem(l,accFor(l,pc),d[2],{key:{L:K[0],a:K[1]},deg:d[3]}));
       });
     }
+  } else if(c.seq==="ancora"){
+    out=cGenAncora();   // a série tem o tamanho da volta do fixo, não o de settings.c.count
+  } else if(c.seq==="inversoes"){
+    out=cGenInv();   // um bloco de 7 por acorde escolhido, também sem settings.c.count
+  } else if(c.seq==="cromatica"){
+    out=cGenCrom(n);
   } else if(c.seq==="ciclo"){
     var prev=null;
     for(i=0;i<n;i++){
@@ -488,10 +550,11 @@ function cStop(msg){
 function cFinish(){
   C.state="idle"; cRelease();
   var done={items:C.items,res:C.res,mode:C.mode,pace:C.pace,N:C.N,bpm:settings.c.bpm}, rd=C.round;
-  // A volta dos sorteios “Todas as trocas” e “Trocas difíceis” só avança com a série terminada.
+  // A volta dos sorteios “Todas as trocas” e “Trocas difíceis” e o fixo de “Um com todos” só avançam com a série terminada.
   if(rd){
     cstats.rounds[rd.k]=rd.st; cSave();
     if(rd.draw==="todas") done.prog=(rd.st.laps>rd.laps?"Volta "+rd.st.laps+" completa: cada uma das "+rd.E.toLocaleString("pt-BR")+" trocas saiu uma vez. ":"")+cRoundTxt();
+    else if(rd.draw==="ancora") done.prog=cAncoraProg(rd);
   }
   C.items=cGen(); C.res=[]; C.idx=0; C.slot=-1; C.asked=false; C.revealed=settings.c.shape;
   cFeedback(""); cShowResult(done); cRenderStats(); cRenderWeak(); cRenderControls(); cRender();
@@ -593,7 +656,7 @@ function cRenderFing(){
 function cSub(it){
   var b=cVoice(it)[0], s=it.deg?it.deg+" no tom de "+cNote(it.key.L,it.key.a):"maior";
   if(it.inv) s+=" · "+CINV[it.inv]+", "+cNote(b.L,b.a)+" embaixo";
-  else if(settings.c.inv||it.deg) s+=" · "+CINV[0];
+  else if(settings.c.inv||it.deg||settings.c.seq==="inversoes") s+=" · "+CINV[0];
   return s;
 }
 function cRender(){
@@ -641,6 +704,9 @@ function cRenderControls(){
   document.querySelectorAll("[data-cbeats]").forEach(function(b){b.setAttribute("aria-checked",String(+b.dataset.cbeats===c.beats));});
   document.querySelectorAll("[data-ccount]").forEach(function(b){b.setAttribute("aria-checked",String(+b.dataset.ccount===c.count));});
   document.getElementById("f-cdraw").hidden=c.seq!=="sorteada";
+  // A série dessas duas tem tamanho próprio; e a progressão e as inversões já escolhem as posições.
+  document.getElementById("f-ccount").hidden=c.seq==="ancora"||c.seq==="inversoes";
+  document.getElementById("f-cinv").hidden=c.seq==="progressao"||c.seq==="inversoes";
   document.getElementById("f-cbeats").hidden=document.getElementById("f-cbpm").hidden=c.pace!=="metro";
   document.getElementById("c-bpm").value=c.bpm;
   document.getElementById("c-bpm-val").textContent=c.bpm;
@@ -649,6 +715,25 @@ function cRenderControls(){
   var sel=CGROUPS.filter(function(g){return c.groups.indexOf(g.id)>=0;});
   var d=(sel.length===CGROUPS.length?"Os 12 acordes maiores. ":"")+sel.map(function(g){return g.desc(g.roots.map(function(ri){return cNote(CROOTS[ri][0],CROOTS[ri][1]);}));}).join(" ");
   if(c.seq==="progressao") d+=" I–IV–V–I em cada tom escolhido, com as inversões que deixam a mão quase parada: I na fundamental, IV na 2ª inversão e V na 1ª.";
+  else if(c.seq==="ancora"){
+    var an=cAncoraItems(), rn=cRoots().length;
+    d+=" Um com todos: o primeiro acorde fica fixo e vai e volta para cada um dos outros, e assim cada troca com ele sai nos dois sentidos."
+      +" A série seguinte fixa o próximo, do "+cName(an[0])+" ao "+cName(an[an.length-1])
+      +(c.inv?". Com inversões, cada posição é um fixo: são "+an.length+" séries de "+(1+2*3*(rn-1))+" acordes.":", em "+an.length+" séries de "+(2*rn-1)+" acordes.")
+      +" “Nova série” pula para o próximo fixo. "+cAncoraTxt();
+  }
+  else if(c.seq==="cromatica"){
+    var cr=cRootsUp(), m=cr.length;
+    d+=" Na ordem do teclado, subindo e descendo"+(m===12?" de semitom em semitom":"")+": "+cList(cr.map(function(ri){return cNote(CROOTS[ri][0],CROOTS[ri][1]);}))+".";
+    if(c.inv) d+=" Com inversões, cada subida ou descida é numa posição, e na virada o mesmo acorde passa para a seguinte: fundamental, 1ª e 2ª inversão."
+      +(c.count<2*m+1?" Para a série chegar à 2ª inversão, escolha "+(2*m+1>24?"48":"24")+" acordes.":"");
+  }
+  else if(c.seq==="inversoes"){
+    var ir=cRootsUp();
+    d+=" Inversões: cada acorde sobe e desce pelas posições, como quem sobe o teclado e volta: fundamental, 1ª, 2ª, fundamental uma oitava acima, 2ª, 1ª e fundamental."
+      +" Depois vem o seguinte, do "+cNote(CROOTS[ir[0]][0],CROOTS[ir[0]][1])+" ao "+cNote(CROOTS[ir[ir.length-1]][0],CROOTS[ir[ir.length-1]][1])+": são "+7*ir.length+" acordes."
+      +(ir.length>3?" Para uma série mais curta, escolha menos grupos.":"");
+  }
   else if(c.seq==="ciclo") d+=" Na ordem do ciclo de quintas: "+cList(cRoots().map(function(ri){return cNote(CROOTS[ri][0],CROOTS[ri][1]);}))+"."+(c.inv?" Cada acorde vem na inversão mais perto do anterior, para a mão andar pouco.":"");
   else {
     if(c.inv) d+=" Cada acorde pode vir na fundamental, na 1ª ou na 2ª inversão.";
@@ -741,7 +826,11 @@ document.getElementById("sw-cshape").addEventListener("click",function(){
   cRender();
 });
 document.getElementById("c-go").addEventListener("click",function(){if(C.state==="idle")cStart();else cStop();});
-document.getElementById("c-new").addEventListener("click",cNew);
+document.getElementById("c-new").addEventListener("click",function(){
+  // Em “Um com todos”, a série nova é a do próximo acorde fixo.
+  if(settings.c.seq==="ancora"&&C.round){cstats.rounds[C.round.k]=C.round.st;cSave();cRenderControls();}
+  cNew();
+});
 document.getElementById("c-check").addEventListener("click",cCheck);
 document.getElementById("c-yes").addEventListener("click",function(){cMark(true);});
 document.getElementById("c-no").addEventListener("click",function(){cMark(false);});

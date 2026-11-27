@@ -98,6 +98,107 @@ teste("Trocas difíceis: acordes por igual e só trocas difíceis", function () 
   });
 });
 
+teste("Um com todos: o fixo vai e volta para cada um, e a série seguinte fixa o próximo", function () {
+  var app = criar().app;
+  Object.assign(app.settings.c, { groups: ["bbb", "bpb", "pbp", "unicos"], inv: false, seq: "ancora", count: 12 });
+  app.cNew();
+  for (var s = 0; s < 13; s++) {
+    var out = app.C.items, A = s % 12, trocas = {};
+    assert.strictEqual(out.length, 23, "o tamanho da série não depende de “Série”");
+    out.forEach(function (it, i) {
+      if (i % 2 === 0) assert.ok(it.pc === A && it.inv === 0, "série " + s + ": o fixo nas posições pares");
+      else assert.strictEqual(it.pc, (A + (i + 1) / 2) % 12, "série " + s + ": os outros subindo a partir do fixo");
+      if (i) trocas[app.cKey(out[i - 1]) + ">" + app.cKey(it)] = 1;
+    });
+    assert.strictEqual(Object.keys(trocas).length, 22, "cada troca com o fixo uma vez, nos dois sentidos");
+    app.cFinish();
+    var txt = app.document.getElementById("c-result").innerHTML, prox = app.cName(app.cItemOfKey((s + 1) % 12 + ":0"));
+    if (s === 11) assert.ok(txt.indexOf("Volta completa") >= 0, "o Si fecha a volta");
+    else assert.ok(txt.indexOf("Na próxima série, " + prox + " com cada um.") >= 0, "série " + s + ": " + txt);
+  }
+  assert.strictEqual(app.C.items[0].pc, 1, "depois da volta, recomeça do Dó: a 14ª série fixa o Ré♭");
+});
+
+teste("Um com todos com inversões: cada posição é um fixo, sem as outras posições dele", function () {
+  var app = criar().app;
+  Object.assign(app.settings.c, { groups: ["bbb"], inv: true, seq: "ancora" });
+  var fixos = [], esperado = ["0:0", "0:1", "0:2", "5:0", "5:1", "5:2", "7:0", "7:1", "7:2"];
+  for (var s = 0; s < 9; s++) {
+    var out = app.cGen(); fecharSerie(app);
+    assert.strictEqual(out.length, 13, "1 + 2 × 6 acordes");
+    fixos.push(app.cKey(out[0]));
+    var outros = out.filter(function (it, i) { return i % 2 === 1; }).map(app.cKey);
+    assert.ok(outros.every(function (k) { return +k.split(":")[0] !== out[0].pc; }), "sem as outras posições do fixo");
+    if (s === 5) assert.deepEqual(outros, ["7:0", "7:1", "7:2", "0:0", "0:1", "0:2"], "do seguinte ao fixo, dando a volta");
+  }
+  assert.deepEqual(fixos, esperado);
+});
+
+teste("Um com todos: “Nova série” pula o fixo; mudar um ajuste ou parar a série, não", function () {
+  var env = criar(), app = env.app;
+  Object.assign(app.settings.c, { groups: ["bbb", "bpb", "pbp", "unicos"], inv: false, seq: "ancora" });
+  app.cNew();
+  assert.strictEqual(app.C.items[0].pc, 0);
+  env.els["c-new"]._ouvintes.click[0]();
+  assert.strictEqual(app.C.items[0].pc, 1, "Nova série: o Ré♭");
+  assert.ok(env.armazenado["lcs-chords"].indexOf('"next":"1:0"') >= 0, "o fixo da série à vista fica guardado no aparelho");
+  app.cSet("hands", "esquerda");
+  assert.strictEqual(app.C.items[0].pc, 1, "mudar a mão não pula o fixo");
+  app.C.state = "run"; app.cStop(); app.cNew();
+  assert.strictEqual(app.C.items[0].pc, 1, "série interrompida não avança");
+  app.settings.c.groups = ["bbb"]; app.cNew();
+  assert.strictEqual(app.C.items[0].pc, 0, "outro conjunto de acordes tem a sua própria volta");
+  // O ajuste salvo volta no carregamento; um valor desconhecido vira a sorteada.
+  var app2 = criar({ armazenado: { "lcs-settings": JSON.stringify({ c: { seq: "ancora" } }) } }).app;
+  assert.strictEqual(app2.settings.c.seq, "ancora");
+  assert.strictEqual(app2.C.items.length, 5, "Dó, Fá, Dó, Sol, Dó");
+  assert.strictEqual(criar({ armazenado: { "lcs-settings": JSON.stringify({ c: { seq: "outra" } }) } }).app.settings.c.seq, "sorteada");
+});
+
+teste("Cromática: sobe e desce pelo teclado; com inversões, troca de posição na virada", function () {
+  var app = criar().app, c = app.settings.c;
+  function semRepetir(out) {
+    for (var i = 1; i < out.length; i++) assert.ok(!(out[i].pc === out[i - 1].pc && out[i].inv === out[i - 1].inv), "repetido em " + i);
+  }
+  Object.assign(c, { groups: ["bbb", "bpb", "pbp", "unicos"], inv: false, seq: "cromatica", count: 24 });
+  var out = app.cGen();
+  assert.deepEqual(out.map(function (it) { return it.pc; }), [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 1]);
+  assert.ok(out.every(function (it) { return it.inv === 0; }));
+  semRepetir(out);
+  c.groups = ["bbb"]; c.count = 12;
+  assert.deepEqual(app.cGen().map(app.cName), ["Dó", "Fá", "Sol", "Fá", "Dó", "Fá", "Sol", "Fá", "Dó", "Fá", "Sol", "Fá"]);
+  Object.assign(c, { groups: ["bbb", "bpb", "pbp", "unicos"], inv: true, count: 48 });
+  out = app.cGen();
+  assert.strictEqual(out.length, 48);
+  semRepetir(out);
+  [[0, 0, true], [1, 1, false], [2, 2, true], [3, 0, false]].forEach(function (p) {
+    var trecho = out.slice(p[0] * 12, p[0] * 12 + 12);
+    assert.ok(trecho.every(function (it) { return it.inv === p[1]; }), "trecho " + p[0] + " na posição " + p[1]);
+    assert.deepEqual(trecho.map(function (it) { return it.pc; }), p[2] ? [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] : [11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]);
+  });
+});
+
+teste("Inversões: cada acorde sobe e desce pelas posições, do Dó ao Si", function () {
+  var env = criar(), app = env.app, c = app.settings.c;
+  Object.assign(c, { groups: ["bbb", "bpb", "pbp", "unicos"], inv: false, count: 12 });
+  app.cSet("seq", "inversoes");
+  var out = app.C.items;
+  assert.strictEqual(out.length, 84, "7 por acorde, sem depender de “Série”");
+  for (var k = 0; k < 12; k++) {
+    var bloco = out.slice(k * 7, k * 7 + 7);
+    assert.ok(bloco.every(function (it) { return it.pc === k; }), "bloco " + k);
+    assert.deepEqual(bloco.map(function (it) { return it.inv; }), [0, 1, 2, 0, 2, 1, 0]);
+  }
+  for (var i = 1; i < out.length; i++) assert.ok(!(out[i].pc === out[i - 1].pc && out[i].inv === out[i - 1].inv), "repetido em " + i);
+  assert.ok(app.cSub(out[0]).indexOf("posição fundamental") >= 0, "a fundamental aparece como posição");
+  assert.strictEqual(env.els["f-ccount"].hidden, true, "o tamanho da série é o dos blocos");
+  assert.strictEqual(env.els["f-cinv"].hidden, true, "as posições já vêm da sequência");
+  c.inv = true; assert.strictEqual(app.cGen().length, 84, "o ajuste de posição não muda nada");
+  app.cSet("seq", "cromatica");
+  assert.strictEqual(env.els["f-ccount"].hidden, false);
+  assert.strictEqual(env.els["f-cinv"].hidden, false);
+});
+
 /* ---------- acordes: metrônomo ---------- */
 function serieMetro(env, cfg) {
   var app = env.app, c = app.settings.c;
